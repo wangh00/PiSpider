@@ -124,6 +124,8 @@ contextBridge.exposeInMainWorld("pispider", {
   saveModelConfig: (config) => ipcRenderer.invoke("config:save-model", config),
   getModelScope: () => ipcRenderer.invoke("config:get-model-scope"),
   setModelScope: (patterns) => ipcRenderer.invoke("config:set-model-scope", patterns),
+  getAdvancedSettings: () => ipcRenderer.invoke("config:get-advanced"),
+  setAdvancedSettings: (input) => ipcRenderer.invoke("config:set-advanced", input),
   setModelThinkingDefault: (reference, level) =>
     ipcRenderer.invoke("config:set-model-thinking-default", reference, level),
   checkModelConfig: (config) => ipcRenderer.invoke("config:check-model", config),

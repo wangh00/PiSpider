@@ -2038,6 +2038,8 @@ function normalizeEnabledModels(input) {
 }
 
 const MODEL_THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const SETTINGS_TRANSPORTS = new Set(["auto", "sse", "websocket", "websocket-cached"]);
+const COMPACTION_DEFAULTS = { enabled: true, reserveTokens: 16384, keepRecentTokens: 20000 };
 
 function normalizeModelThinkingLevels(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -2095,6 +2097,152 @@ async function setModelScope(patterns) {
   await writeJsonObject(paths.settingsPath, settings);
   if (agent?.child) await restartAgentPreservingSession(true);
   return { ok: true, enabledModels };
+}
+
+function normalizeHttpProxySetting(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") throw new Error("代理地址无效");
+  const proxy = value.trim();
+  if (!proxy) return "";
+  if (proxy.length > 2048 || /\s/.test(proxy)) throw new Error("代理地址无效");
+  let parsed;
+  try {
+    parsed = new URL(proxy);
+  } catch {
+    throw new Error("代理地址无效：需要 http:// 或 https:// 地址");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("代理仅支持 http:// 或 https:// 地址");
+  }
+  return proxy;
+}
+
+function normalizeShellPathSetting(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") throw new Error("Shell 路径无效");
+  const shellPath = value.trim();
+  if (!shellPath) return "";
+  if (shellPath.length > 2048 || /[\u0000\r\n]/u.test(shellPath)) throw new Error("Shell 路径无效");
+  return shellPath;
+}
+
+function normalizeDefaultToolsSetting(value) {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("默认工具必须是列表");
+  const entries = [...new Set(value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean))];
+  if (entries.length > 100) throw new Error("默认工具最多包含 100 项");
+  const modifiers = entries.filter((entry) => entry.startsWith("+") || entry.startsWith("-"));
+  if (modifiers.length && modifiers.length !== entries.length) {
+    throw new Error("工具名称不能与 +名称 / -名称 混用");
+  }
+  for (const entry of entries) {
+    if (entry.length > 160 || /\s/u.test(entry)) throw new Error(`工具名称无效：${entry.slice(0, 40)}`);
+    if (modifiers.length && entry.slice(1).includes("*")) throw new Error("+名称 / -名称 不支持通配符");
+    if (modifiers.length && !entry.slice(1)) throw new Error("+名称 / -名称 不能为空");
+  }
+  return entries;
+}
+
+function normalizeCompactionToken(value, label, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(number) || number < 0) throw new Error(`${label} 必须是非负整数`);
+  return number;
+}
+
+function normalizeCompactionSetting(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("压缩设置无效");
+  const enabled = value.enabled === undefined ? COMPACTION_DEFAULTS.enabled : value.enabled;
+  if (typeof enabled !== "boolean") throw new Error("自动压缩开关无效");
+  return {
+    enabled,
+    reserveTokens: normalizeCompactionToken(value.reserveTokens, "预留 tokens", COMPACTION_DEFAULTS.reserveTokens),
+    keepRecentTokens: normalizeCompactionToken(
+      value.keepRecentTokens,
+      "保留最近 tokens",
+      COMPACTION_DEFAULTS.keepRecentTokens,
+    ),
+  };
+}
+
+async function getAdvancedSettingsState() {
+  const paths = await loadRuntimePaths();
+  const settings = await readJsonObject(paths.settingsPath, "settings.json");
+  const compaction =
+    settings.compaction && typeof settings.compaction === "object" && !Array.isArray(settings.compaction)
+      ? settings.compaction
+      : {};
+  return {
+    ok: true,
+    settingsPath: paths.settingsPath,
+    transport: SETTINGS_TRANSPORTS.has(settings.transport) ? settings.transport : "auto",
+    httpProxy: typeof settings.httpProxy === "string" ? settings.httpProxy : "",
+    shellPath: typeof settings.shellPath === "string" ? settings.shellPath : "",
+    defaultTools: Array.isArray(settings.defaultTools)
+      ? settings.defaultTools.filter((item) => typeof item === "string")
+      : [],
+    compaction: {
+      enabled: typeof compaction.enabled === "boolean" ? compaction.enabled : COMPACTION_DEFAULTS.enabled,
+      reserveTokens:
+        Number.isSafeInteger(compaction.reserveTokens) && compaction.reserveTokens >= 0
+          ? compaction.reserveTokens
+          : COMPACTION_DEFAULTS.reserveTokens,
+      keepRecentTokens:
+        Number.isSafeInteger(compaction.keepRecentTokens) && compaction.keepRecentTokens >= 0
+          ? compaction.keepRecentTokens
+          : COMPACTION_DEFAULTS.keepRecentTokens,
+      hasModelOverrides: Boolean(
+        compaction.modelOverrides &&
+          typeof compaction.modelOverrides === "object" &&
+          !Array.isArray(compaction.modelOverrides) &&
+          Object.keys(compaction.modelOverrides).length,
+      ),
+    },
+  };
+}
+
+async function setAdvancedSettingsState(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("缺少高级设置");
+  if (!SETTINGS_TRANSPORTS.has(input.transport)) throw new Error("传输协议无效");
+  const httpProxy = normalizeHttpProxySetting(input.httpProxy);
+  const shellPath = normalizeShellPathSetting(input.shellPath);
+  const defaultTools = normalizeDefaultToolsSetting(input.defaultTools);
+  const compactionInput = normalizeCompactionSetting(input.compaction);
+  const paths = await loadRuntimePaths();
+  const settings = await readJsonObject(paths.settingsPath, "settings.json");
+  settings.transport = input.transport;
+  if (httpProxy) settings.httpProxy = httpProxy;
+  else delete settings.httpProxy;
+  if (shellPath) settings.shellPath = shellPath;
+  else delete settings.shellPath;
+  if (defaultTools.length) settings.defaultTools = defaultTools;
+  else delete settings.defaultTools;
+  const previousCompaction =
+    settings.compaction && typeof settings.compaction === "object" && !Array.isArray(settings.compaction)
+      ? settings.compaction
+      : {};
+  settings.compaction = { ...previousCompaction, ...compactionInput };
+  await writeJsonObject(paths.settingsPath, settings);
+  let restarted = false;
+  let restartError = null;
+  if (agent?.child) {
+    try {
+      await restartAgentPreservingSession(true);
+      restarted = true;
+    } catch (error) {
+      restartError = error.message || String(error);
+    }
+  }
+  return {
+    ok: true,
+    transport: input.transport,
+    httpProxy,
+    shellPath,
+    defaultTools,
+    compaction: compactionInput,
+    restarted,
+    restartError,
+  };
 }
 
 async function getModelConfigState() {
@@ -3715,6 +3863,8 @@ ipcMain.handle("config:list-models", async () => {
 });
 ipcMain.handle("config:get-model-scope", async () => getModelScopeState());
 ipcMain.handle("config:set-model-scope", async (_event, patterns) => setModelScope(patterns));
+ipcMain.handle("config:get-advanced", async () => getAdvancedSettingsState());
+ipcMain.handle("config:set-advanced", async (_event, input) => setAdvancedSettingsState(input));
 ipcMain.handle("config:set-model-thinking-default", async (_event, reference, level) =>
   setModelThinkingDefault(reference, level),
 );

@@ -2517,6 +2517,140 @@ function bindWorkspaceForm(config) {
   manageRules.addEventListener("click", () => API.openPanel("rules"));
 }
 
+function advancedSettingsCardHtml(advanced, settingsPath) {
+  const transport = advanced?.transport || "auto";
+  const compaction = advanced?.compaction || {};
+  const enabled = compaction.enabled !== false;
+  const reserveTokens = compaction.reserveTokens ?? 16384;
+  const keepRecentTokens = compaction.keepRecentTokens ?? 20000;
+  const tools = Array.isArray(advanced?.defaultTools) ? advanced.defaultTools.join("\n") : "";
+  const transportOptions = [
+    { value: "auto", label: "自动（默认）" },
+    { value: "sse", label: "SSE" },
+    { value: "websocket", label: "WebSocket" },
+    { value: "websocket-cached", label: "WebSocket（缓存）" },
+  ];
+  return `
+    <section class="settings-card advanced-card">
+      <div class="settings-section-head">高级设置</div>
+      <div class="model-grid">
+        <label class="model-field">
+          <span>传输协议</span>
+          <select id="advancedTransport">
+            ${transportOptions
+              .map(
+                (option) =>
+                  `<option value="${option.value}" ${transport === option.value ? "selected" : ""}>${option.label}</option>`,
+              )
+              .join("")}
+          </select>
+        </label>
+        <label class="model-field">
+          <span>HTTP 代理</span>
+          <input id="advancedHttpProxy" class="model-input" value="${escapeHtml(
+            advanced?.httpProxy || "",
+          )}" placeholder="http://127.0.0.1:7890" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="model-field model-field-wide">
+          <span>Shell 路径</span>
+          <input id="advancedShellPath" class="model-input" value="${escapeHtml(
+            advanced?.shellPath || "",
+          )}" placeholder="留空使用自动探测" autocomplete="off" spellcheck="false" />
+        </label>
+      </div>
+      <div class="advanced-subhead">默认工具</div>
+      <textarea id="advancedDefaultTools" class="model-input advanced-tools-input" rows="4" placeholder="每行一个工具名称，例如 read、grep" spellcheck="false">${escapeHtml(
+        tools,
+      )}</textarea>
+      <div class="model-hint">每行一个。纯名称替换默认集合；<code>+名称</code> 增加、<code>-名称</code> 移除，二者不能与纯名称混用；留空使用 Pi 默认的 read / bash / edit / write。</div>
+      <div class="advanced-subhead">上下文压缩</div>
+      <div class="model-grid">
+        <label class="model-field">
+          <span>自动压缩</span>
+          <select id="advancedCompactionEnabled">
+            <option value="true" ${enabled ? "selected" : ""}>开启</option>
+            <option value="false" ${enabled ? "" : "selected"}>关闭</option>
+          </select>
+        </label>
+        <label class="model-field">
+          <span>预留 tokens</span>
+          <input id="advancedCompactionReserve" class="model-input" type="number" min="0" step="1" value="${escapeHtml(
+            String(reserveTokens),
+          )}" />
+        </label>
+        <label class="model-field">
+          <span>保留最近 tokens</span>
+          <input id="advancedCompactionKeep" class="model-input" type="number" min="0" step="1" value="${escapeHtml(
+            String(keepRecentTokens),
+          )}" />
+        </label>
+      </div>
+      <div class="model-hint">${
+        compaction.hasModelOverrides
+          ? "当前存在逐模型压缩覆盖，保存时保留。"
+          : "未设置逐模型压缩覆盖。"
+      } 参数写入用户级 settings.json，保存后重启 Agent 生效。</div>
+      <div class="model-actions advanced-actions">
+        <span class="advanced-settings-status" title="${escapeHtml(settingsPath || "")}">${escapeHtml(
+          settingsPath || "settings.json",
+        )}</span>
+        <button class="panel-action primary" id="saveAdvancedSettings" type="button">保存并重启 Agent</button>
+      </div>
+    </section>
+  `;
+}
+
+function bindAdvancedSettings() {
+  const save = $("saveAdvancedSettings");
+  if (!save) return;
+  save.addEventListener("click", async () => {
+    const reserveRaw = String($("advancedCompactionReserve")?.value || "").trim();
+    const keepRaw = String($("advancedCompactionKeep")?.value || "").trim();
+    const reserveTokens = Number(reserveRaw);
+    const keepRecentTokens = Number(keepRaw);
+    if (!reserveRaw || !Number.isSafeInteger(reserveTokens) || reserveTokens < 0) {
+      showMessage("预留 tokens 必须是非负整数", true);
+      return;
+    }
+    if (!keepRaw || !Number.isSafeInteger(keepRecentTokens) || keepRecentTokens < 0) {
+      showMessage("保留最近 tokens 必须是非负整数", true);
+      return;
+    }
+    const input = {
+      transport: $("advancedTransport")?.value || "auto",
+      httpProxy: String($("advancedHttpProxy")?.value || "").trim(),
+      shellPath: String($("advancedShellPath")?.value || "").trim(),
+      defaultTools: String($("advancedDefaultTools")?.value || "")
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter(Boolean),
+      compaction: {
+        enabled: $("advancedCompactionEnabled")?.value !== "false",
+        reserveTokens,
+        keepRecentTokens,
+      },
+    };
+    const label = save.textContent;
+    save.disabled = true;
+    save.textContent = "保存中…";
+    try {
+      const result = await API.setAdvancedSettings(input);
+      if (result?.restartError) {
+        showMessage(`高级设置已保存，但 Agent 未重启：${result.restartError}`, true);
+      } else if (result?.restarted) {
+        showMessage("高级设置已保存，Agent 已重启");
+      } else {
+        showMessage("高级设置已保存，Agent 启动后生效");
+      }
+    } catch (error) {
+      showMessage(error.message, true);
+    } finally {
+      save.disabled = false;
+      save.textContent = label;
+    }
+  });
+}
+
 function extensionRowsHtml(rows) {
   if (!rows.length) {
     return `<div class="extension-empty">当前作用域没有扩展文件。</div>`;
@@ -2777,6 +2911,7 @@ async function renderSettings() {
   let prompts = [];
   let promptTemplates = { templates: [], dirs: {} };
   let projectTrust = { mode: "ask" };
+  let advancedSettings = null;
   try {
     state = await API.getModelConfig();
     modelConfigState = state;
@@ -2805,9 +2940,17 @@ async function renderSettings() {
   } catch (error) {
     showMessage(error.message, true);
   }
+  try {
+    advancedSettings = await API.getAdvancedSettings();
+  } catch (error) {
+    showMessage(error.message, true);
+  }
   const form = modelFormHtml(state);
   const workspaceForm = workspaceFormHtml(workspaceConfig);
   const trustForm = trustFormHtml(projectTrust.mode);
+  const advancedSettingsPath =
+    advancedSettings?.settingsPath || (runtimeInfo?.agentDir ? `${runtimeInfo.agentDir}\\settings.json` : "");
+  const advancedForm = advancedSettingsCardHtml(advancedSettings, advancedSettingsPath);
   const promptForm = promptConfigHtml(prompts);
   const promptTemplatesForm = promptTemplatesHtml(promptTemplates);
   const rows = [
@@ -2827,10 +2970,11 @@ async function renderSettings() {
     { label: "会话目录", value: runtimeInfo.sessionDir, open: true },
   ];
   const settingsHero = settingsHeroHtml(state, workspaceConfig, projectTrust);
-  $("panelBody").innerHTML = `<div class="settings-page panel-page">${settingsHero}${form}<div class="settings-duo">${workspaceForm}${trustForm}</div>${promptForm}${promptTemplatesForm}<section class="settings-paths-card"><div class="settings-section-head">文件与目录</div><div class="setting-card settings-paths">${settingRowsHtml(rows)}</div></section></div>`;
+  $("panelBody").innerHTML = `<div class="settings-page panel-page">${settingsHero}${form}<div class="settings-duo">${workspaceForm}${trustForm}</div>${advancedForm}${promptForm}${promptTemplatesForm}<section class="settings-paths-card"><div class="settings-section-head">文件与目录</div><div class="setting-card settings-paths">${settingRowsHtml(rows)}</div></section></div>`;
   bindOpenButtons();
   bindWorkspaceForm(workspaceConfig);
   bindTrustForm();
+  bindAdvancedSettings();
   bindModelForm(state);
   bindPromptActions(prompts);
   bindPromptTemplateActions(promptTemplates);

@@ -1933,6 +1933,52 @@ a:focus-visible {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.advanced-subhead {
+  margin: 15px 0 8px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.advanced-tools-input {
+  width: 100%;
+  min-height: 78px;
+  height: auto;
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.advanced-actions {
+  gap: 12px;
+}
+
+.advanced-settings-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-page .advanced-card .panel-action.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.settings-page .advanced-card .panel-action.primary:hover {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--accent-contrast);
+}
+
 .settings-paths-card {
   margin-top: 0;
 }
