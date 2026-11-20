@@ -26,7 +26,7 @@ const PANEL_COLLAPSE_WIDTH = 1180;
 const PANEL_OVERLAY_WIDTH = 1320;
 const SCROLL_POSITIONS_KEY = "pispider-scroll-positions";
 const MESSAGE_HEIGHT_CACHE_KEY = "pispider-message-heights";
-const MESSAGE_HEIGHT_CACHE_VERSION = 4;
+const MESSAGE_HEIGHT_CACHE_VERSION = 5;
 const MESSAGE_HEIGHT_CACHE_SESSION_LIMIT = 10;
 const MESSAGE_HEIGHT_CACHE_ENTRY_LIMIT = 5000;
 const MESSAGE_HEIGHT_LAYOUT_TOLERANCE = 2;
@@ -135,6 +135,10 @@ let commandPaletteReturnFocus = null;
 let commandPaletteItems = [];
 let commandPaletteResults = [];
 let commandPaletteActive = 0;
+let sessionPickerReturnFocus = null;
+let sessionPickerItems = [];
+let sessionPickerActive = 0;
+let sessionPickerRequest = 0;
 let commandHistory = [];
 let agentRefreshGeneration = 0;
 const actionOpenKeys = new Set();
@@ -1217,6 +1221,7 @@ function closeChangelog() {
 function paletteActions() {
   const actions = [
     { group: "会话", label: "新建任务", detail: "创建新的 Pi 会话", hint: "Ctrl+N", run: () => newTask() },
+    { group: "会话", label: "恢复会话", detail: "打开会话导航，搜索并切换历史会话", hint: "Ctrl+Shift+K", run: () => openSessionPicker() },
     { group: "会话", label: "搜索任务", detail: "聚焦左栏会话搜索", hint: "Ctrl+K", run: () => $("searchInput").focus() },
     { group: "会话", label: "跳到最早消息", detail: "打开从第 1 条开始的历史窗口", hint: "Ctrl+Home", run: () => jumpToEarliestWindow() },
     { group: "会话", label: "回到最新消息", detail: "重置到最新窗口并滚到底部", hint: "Ctrl+End", run: () => scrollToLatest() },
@@ -1403,6 +1408,132 @@ function moveCommandPaletteActive(offset) {
 function toggleCommandPalette() {
   if ($("commandPalette").hidden) openCommandPalette();
   else closeCommandPalette();
+}
+
+function sessionPickerMatches(session, query) {
+  if (!query) return true;
+  const haystack = [session.name, session.path, session.cwd, session.preview]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((token) => haystack.includes(token));
+}
+
+function buildSessionPickerItems(query = "") {
+  return [...state.sessions]
+    .sort(
+      (left, right) =>
+        Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)) ||
+        (Number(right.updatedAt) || 0) - (Number(left.updatedAt) || 0),
+    )
+    .filter((session) => sessionPickerMatches(session, query.trim()));
+}
+
+function renderSessionPicker() {
+  const list = $("sessionPickerList");
+  if (!list) return;
+  if (!sessionPickerItems.length) {
+    list.innerHTML = '<div class="command-palette-empty">没有匹配的会话</div>';
+    return;
+  }
+  const activeSession = state.session?.sessionFile || "";
+  let activeGroup = "";
+  const rows = [];
+  sessionPickerItems.forEach((session, index) => {
+    const group = session.pinned ? "置顶会话" : "最近会话";
+    if (group !== activeGroup) {
+      activeGroup = group;
+      rows.push(`<div class="command-palette-group">${group}</div>`);
+    }
+    const current = session.path === activeSession;
+    rows.push(`
+      <button class="command-palette-item${index === sessionPickerActive ? " is-active" : ""}" type="button" role="option" aria-selected="${index === sessionPickerActive}" data-session-picker-index="${index}">
+        <span class="command-palette-item-main">
+          <span class="command-palette-item-label">${escapeHtml(session.name || session.path)}</span>
+          <span class="command-palette-item-detail">${escapeHtml(
+            [timeLabel(session.updatedAt), shortText(session.preview || session.cwd || "", 110)]
+              .filter(Boolean)
+              .join(" · "),
+          )}</span>
+        </span>
+        <span class="command-palette-item-hint">${current ? "当前" : ""}</span>
+      </button>`);
+  });
+  list.innerHTML = rows.join("");
+  list.querySelectorAll(".command-palette-item").forEach((button) => {
+    const index = Number(button.dataset.sessionPickerIndex);
+    button.addEventListener("mouseenter", () => {
+      sessionPickerActive = index;
+      list.querySelectorAll(".command-palette-item").forEach((item) => {
+        const itemIndex = Number(item.dataset.sessionPickerIndex);
+        item.classList.toggle("is-active", itemIndex === index);
+        item.setAttribute("aria-selected", String(itemIndex === index));
+      });
+    });
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => chooseSessionFromPicker(index));
+  });
+  const active = list.querySelector(".command-palette-item.is-active");
+  active?.scrollIntoView({ block: "nearest" });
+}
+
+function filterSessionPicker() {
+  sessionPickerItems = buildSessionPickerItems($("sessionPickerInput")?.value || "");
+  sessionPickerActive = 0;
+  renderSessionPicker();
+}
+
+async function openSessionPicker() {
+  const dialog = $("sessionPicker");
+  if (!dialog || !dialog.hidden) return;
+  sessionPickerReturnFocus = document.activeElement;
+  $("sessionPickerInput").value = "";
+  sessionPickerItems = buildSessionPickerItems("");
+  const currentIndex = sessionPickerItems.findIndex(
+    (session) => session.path === (state.session?.sessionFile || ""),
+  );
+  sessionPickerActive = Math.max(0, currentIndex);
+  renderSessionPicker();
+  dialog.hidden = false;
+  scheduleDomUpdate(() => $("sessionPickerInput")?.focus());
+  const request = ++sessionPickerRequest;
+  await refreshSessions();
+  if (request !== sessionPickerRequest || dialog.hidden) return;
+  filterSessionPicker();
+}
+
+function closeSessionPicker() {
+  const dialog = $("sessionPicker");
+  if (!dialog || dialog.hidden) return;
+  dialog.hidden = true;
+  sessionPickerRequest += 1;
+  const target = sessionPickerReturnFocus;
+  sessionPickerReturnFocus = null;
+  if (target?.isConnected && typeof target.focus === "function") target.focus();
+  else $("promptInput")?.focus();
+}
+
+function moveSessionPickerActive(offset) {
+  if (!sessionPickerItems.length) return;
+  sessionPickerActive =
+    (sessionPickerActive + offset + sessionPickerItems.length) % sessionPickerItems.length;
+  renderSessionPicker();
+}
+
+async function chooseSessionFromPicker(index) {
+  const session = sessionPickerItems[index];
+  if (!session) return;
+  closeSessionPicker();
+  if (session.path === state.session?.sessionFile) {
+    $("promptInput")?.focus();
+    return;
+  }
+  await switchSession(session.path);
+  showToast(`已切换到 ${shortText(session.name || session.path, 60)}`);
 }
 
 async function applyZoom(factor) {
@@ -1986,8 +2117,7 @@ async function executeBuiltinCommand(name, args) {
       await runCompact(payload.instructions);
       break;
     case "openSessionList":
-      $("searchInput")?.focus();
-      showToast("在左侧会话列表中切换或恢复其他会话");
+      await openSessionPicker();
       break;
     case "reloadAgent":
       await runReloadAgent();
@@ -2454,10 +2584,11 @@ function loadMessageHeightCache() {
       .slice(-MESSAGE_HEIGHT_CACHE_SESSION_LIMIT);
     for (const [sessionKey, value] of sessions) {
       const heights = new Map();
-      for (const [heightKey, height] of Object.entries(value.heights)) {
-        const numericHeight = Number(height);
+      for (const [heightKey, entry] of Object.entries(value.heights)) {
+        const numericHeight = Number(entry?.h ?? entry);
+        const signature = typeof entry?.s === "string" ? entry.s : "";
         if (Number.isFinite(numericHeight) && numericHeight > 0) {
-          heights.set(heightKey, numericHeight);
+          heights.set(heightKey, { height: numericHeight, signature });
         }
         if (heights.size >= MESSAGE_HEIGHT_CACHE_ENTRY_LIMIT) break;
       }
@@ -2484,8 +2615,8 @@ function saveActiveMessageHeights() {
   if (layout.width <= 0) return;
   const previous = state.messageHeightSessions.get(sessionKey);
   const heights = messageHeightLayoutMatches(previous, layout) ? previous.heights : new Map();
-  for (const [heightKey, height] of state.messageHeights) {
-    if (Number.isFinite(height) && height > 0) heights.set(heightKey, height);
+  for (const [heightKey, entry] of state.messageHeights) {
+    if (entry && Number.isFinite(entry.height) && entry.height > 0) heights.set(heightKey, entry);
   }
   while (heights.size > MESSAGE_HEIGHT_CACHE_ENTRY_LIMIT) {
     const oldestKey = heights.keys().next().value;
@@ -2517,7 +2648,12 @@ function persistMessageHeightsNow() {
           updatedAt: cache.updatedAt || 0,
           layoutWidth: cache.width || 0,
           layoutZoom: cache.zoom || 1,
-          heights: Object.fromEntries(cache.heights),
+          heights: Object.fromEntries(
+            [...cache.heights].map(([heightKey, entry]) => [
+              heightKey,
+              { h: entry.height, s: entry.signature || "" },
+            ]),
+          ),
         },
       ]);
     const keptSessions = new Set(sessions.map(([sessionKey]) => sessionKey));
@@ -2542,8 +2678,8 @@ function loadMessageHeightsForSession(sessionKey) {
   state.messageHeightLayoutZoom = layout.zoom;
   const cache = state.messageHeightSessions.get(sessionKey);
   if (cache && messageHeightLayoutMatches(cache, layout)) {
-    for (const [heightKey, height] of cache.heights) {
-      state.messageHeights.set(heightKey, height);
+    for (const [heightKey, entry] of cache.heights) {
+      state.messageHeights.set(heightKey, entry);
     }
   }
   state.messageHeightVersion += 1;
@@ -2833,6 +2969,28 @@ function messageBlocks(message) {
   return message.content;
 }
 
+function messageImageBlocks(message) {
+  return messageBlocks(message).filter((block) => block?.type === "image" && block.data);
+}
+
+function messageImageElement(image) {
+  const element = document.createElement("img");
+  element.src = `data:${image.mimeType || "image/png"};base64,${image.data}`;
+  element.alt = "附加图片";
+  // Images decode after the message is laid out; re-measure once the real box
+  // is known so the virtual spacer does not keep the pre-decode estimate.
+  element.addEventListener("load", () => refreshActionGroupLayout());
+  element.addEventListener("error", () => refreshActionGroupLayout());
+  return element;
+}
+
+function renderMessageImageStrip(images) {
+  const strip = document.createElement("div");
+  strip.className = "message-images";
+  for (const image of images) strip.appendChild(messageImageElement(image));
+  return strip;
+}
+
 function messageCopyText(message) {
   if (message.role === "user") return contentToText(message.content).trim();
   if (message.role === "bashExecution") {
@@ -3036,6 +3194,7 @@ function renderAssistantContent(message, body, { skipThinking = false } = {}) {
     text.textContent = "思考中...";
     body.appendChild(text);
   }
+  let imageStrip = null;
   for (const block of blocks) {
     if (!block || typeof block !== "object") continue;
     if (block.type === "text" && block.text) {
@@ -3050,6 +3209,12 @@ function renderAssistantContent(message, body, { skipThinking = false } = {}) {
         block.thinking,
       )}</div>`;
       body.appendChild(details);
+    } else if (block.type === "image" && block.data) {
+      if (!imageStrip || body.lastElementChild !== imageStrip) {
+        imageStrip = renderMessageImageStrip([]);
+        body.appendChild(imageStrip);
+      }
+      imageStrip.appendChild(messageImageElement(block));
     }
   }
   const errorText = typeof message.errorMessage === "string" ? message.errorMessage.trim() : "";
@@ -3098,18 +3263,8 @@ function renderMessage(message) {
     text.className = "message-text";
     text.textContent = contentToText(message.content);
     if (text.textContent) body.appendChild(text);
-    const images = messageBlocks(message).filter((block) => block?.type === "image" && block.data);
-    if (images.length) {
-      const strip = document.createElement("div");
-      strip.className = "message-images";
-      strip.innerHTML = images
-        .map(
-          (image) =>
-            `<img src="data:${escapeHtml(image.mimeType || "image/png")};base64,${escapeHtml(image.data)}" alt="附加图片" />`,
-        )
-        .join("");
-      body.appendChild(strip);
-    }
+    const images = messageImageBlocks(message);
+    if (images.length) body.appendChild(renderMessageImageStrip(images));
   } else if (message.role === "bashExecution") {
     body.appendChild(renderBashExecutionMessage(message));
   } else if (message.role === "toolResult") {
@@ -3206,12 +3361,14 @@ function renderToolResultMessage(message) {
   const details = document.createElement("details");
   details.className = "tool-card";
   const output = contentToText(message.content);
+  const images = messageImageBlocks(message);
+  const summaryText = output || (images.length ? `${images.length} 张图片` : "");
   details.innerHTML = `
     <summary>
       <span class="tool-status ${message.isError ? "error" : ""}"></span>
       <span class="tool-name">${escapeHtml(message.toolName || "tool")}</span>
       <span class="tool-kind">${escapeHtml(toolKindLabel(message.toolName))}</span>
-      <span class="tool-summary">${escapeHtml(shortText(output, 120))}</span>
+      <span class="tool-summary">${escapeHtml(shortText(summaryText, 120))}</span>
     </summary>
     <div class="tool-body">
       <div class="tool-section">
@@ -3220,6 +3377,15 @@ function renderToolResultMessage(message) {
       </div>
     </div>
   `;
+  if (images.length) {
+    const section = document.createElement("div");
+    section.className = "tool-section";
+    const label = document.createElement("div");
+    label.className = "tool-section-label";
+    label.textContent = "图片";
+    section.append(label, renderMessageImageStrip(images));
+    details.querySelector(".tool-body")?.appendChild(section);
+  }
   return details;
 }
 
@@ -3243,7 +3409,7 @@ function messageStructureKey(messages) {
       (message, index) =>
         `${index}:${message.role}:${message.id || ""}:${message.timestamp || ""}:${message._optimistic ? "o" : ""}:${
           message._actionCount || ""
-        }:${message._turn?.signature || ""}`,
+        }:${message._turn?.signature || ""}:${message._live ? "" : messageHeightSignature(message)}`,
     )
     .join("|");
 }
@@ -3588,6 +3754,44 @@ function visibleMessages() {
   return visible;
 }
 
+function compactHeightSignature(value) {
+  const text = String(value ?? "");
+  if (text.length <= 120) return `${text.length}:${text}`;
+  return `${text.length}:${text.slice(0, 56)}:${text.slice(-56)}`;
+}
+
+function blockHeightSignature(block) {
+  if (!block || typeof block !== "object") return "?";
+  if (block.type === "text") return `t:${compactHeightSignature(block.text)}`;
+  if (block.type === "thinking") return `k:${compactHeightSignature(block.thinking)}`;
+  if (block.type === "image") return `i:${block.mimeType || ""}:${String(block.data || "").length}`;
+  if (block.type === "toolCall") {
+    const args = block.arguments;
+    const argText =
+      typeof args === "string"
+        ? args
+        : args && typeof args === "object"
+          ? `${Object.keys(args).join(",")}:${String(args.command ?? args.path ?? args.query ?? args.file_path ?? "").length}`
+          : "";
+    return `c:${block.id || ""}:${compactHeightSignature(argText)}`;
+  }
+  return `o:${block.type || ""}`;
+}
+
+// Height cache entries are keyed by message id, so content edits that keep the
+// same id need a cheap fingerprint to invalidate the stale measurement.
+function messageHeightSignature(message) {
+  const parts = [message.role || "", message._turn ? "turn" : ""];
+  if (message.toolName) parts.push(`n:${message.toolName}`);
+  if (message.isError) parts.push("err");
+  if (message.cancelled) parts.push("cancelled");
+  if (message.exitCode != null) parts.push(`x:${message.exitCode}`);
+  if (message.command) parts.push(`cmd:${compactHeightSignature(message.command)}`);
+  if (message.errorMessage) parts.push(`msg:${compactHeightSignature(message.errorMessage)}`);
+  for (const block of messageBlocks(message)) parts.push(blockHeightSignature(block));
+  return compactHeightSignature(parts.join("|"));
+}
+
 function messageHeightKey(message, index) {
   // Keep heights attached to messages, not slice indices, across fork/insert.
   return message.id ? `id:${message.id}` : `fallback:${messageNodeKey(message, index)}`;
@@ -3671,14 +3875,14 @@ function estimatedMarkdownHeight(value) {
 }
 
 function messageEstimatedHeight(message) {
+  const blocks = messageBlocks(message);
+  const imageCount = blocks.filter((block) => block?.type === "image" && block.data).length;
   if (message.role === "toolResult" || message.role === "bashExecution") {
     return MESSAGE_TOOL_RESULT_HEIGHT + MESSAGE_MARGIN_HEIGHT;
   }
-  const blocks = messageBlocks(message);
   if (message.role === "user") {
     const textHeight = estimatedWrappedLines(contentToText(message.content), estimatedUserTextWidth()) * MESSAGE_TEXT_LINE_HEIGHT;
-    const imageRows = blocks.filter((block) => block?.type === "image" && block.data).length;
-    return MESSAGE_MARGIN_HEIGHT + 41 + textHeight + imageRows * 194;
+    return MESSAGE_MARGIN_HEIGHT + 41 + textHeight + imageCount * 194;
   }
   let bodyHeight = 0;
   let thinkingCount = 0;
@@ -3687,6 +3891,7 @@ function messageEstimatedHeight(message) {
     if (block.type === "text" && block.text) bodyHeight += estimatedMarkdownHeight(block.text);
     else if (block.type === "thinking" && block.thinking) thinkingCount += 1;
   }
+  if (imageCount) bodyHeight += imageCount * 194 + 7;
   if (message._live && blocks.length === 0) bodyHeight += MESSAGE_TEXT_LINE_HEIGHT;
   const errorHeight = typeof message.errorMessage === "string" && message.errorMessage.trim() ? MESSAGE_ERROR_HEIGHT : 0;
   const turnHeaderHeight = message._turn ? MESSAGE_TURN_HEADER_HEIGHT : 0;
@@ -3695,8 +3900,11 @@ function messageEstimatedHeight(message) {
 }
 
 function messageMeasuredHeight(message, index) {
-  const measured = state.messageHeights.get(messageHeightKey(message, index));
-  return Number.isFinite(measured) && measured > 0 ? measured : messageEstimatedHeight(message);
+  const entry = state.messageHeights.get(messageHeightKey(message, index));
+  if (entry && entry.signature === messageHeightSignature(message) && entry.height > 0) {
+    return entry.height;
+  }
+  return messageEstimatedHeight(message);
 }
 
 function messageOffsets(messages) {
@@ -3793,9 +4001,15 @@ function measureRenderedMessages() {
     const marginBottom = parseFloat(getComputedStyle(element).marginBottom) || 0;
     const height = element.getBoundingClientRect().height + marginBottom;
     if (!Number.isFinite(height) || height <= 0) continue;
+    const signature = element.dataset.messageHeightSignature || "";
     const previous = state.messageHeights.get(heightKey);
-    if (!Number.isFinite(previous) || Math.abs(previous - height) > 0.5) {
-      state.messageHeights.set(heightKey, height);
+    if (
+      !previous ||
+      previous.signature !== signature ||
+      !Number.isFinite(previous.height) ||
+      Math.abs(previous.height - height) > 0.5
+    ) {
+      state.messageHeights.set(heightKey, { height, signature });
       changed = true;
     }
   }
@@ -3861,6 +4075,7 @@ function renderMessages() {
       element.dataset.messageKey = key;
       element.dataset.messageIndex = String(messageIndex);
       element.dataset.messageHeightKey = messageHeightKey(message, messageIndex);
+      element.dataset.messageHeightSignature = messageHeightSignature(message);
       list.appendChild(element);
       messageNodes.set(key, element);
     }
@@ -3877,6 +4092,7 @@ function renderMessages() {
         previous.dataset.messageKey = key;
         previous.dataset.messageIndex = String(messageIndex);
         previous.dataset.messageHeightKey = messageHeightKey(live, messageIndex);
+        previous.dataset.messageHeightSignature = messageHeightSignature(live);
         messageNodes.set(key, previous);
       } else {
         const element = renderMessage(live);
@@ -3884,6 +4100,7 @@ function renderMessages() {
           element.dataset.messageKey = key;
           element.dataset.messageIndex = String(messageIndex);
           element.dataset.messageHeightKey = messageHeightKey(live, messageIndex);
+          element.dataset.messageHeightSignature = messageHeightSignature(live);
           if (previous) previous.replaceWith(element);
           else list.insertBefore(element, messageBottomSpacer);
           messageNodes.set(key, element);
@@ -5892,6 +6109,28 @@ function bindEvents() {
   $("commandPalette").addEventListener("click", (event) => {
     if (event.target === $("commandPalette")) closeCommandPalette();
   });
+  $("sessionPickerInput")?.addEventListener("input", filterSessionPicker);
+  $("sessionPickerInput")?.addEventListener("keydown", (event) => {
+    if (event.isComposing) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveSessionPickerActive(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      chooseSessionFromPicker(sessionPickerActive);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSessionPicker();
+    }
+  });
+  $("sessionPicker")?.addEventListener("click", (event) => {
+    if (event.target === $("sessionPicker")) closeSessionPicker();
+  });
   $("sessionInfoButton").addEventListener("click", () => openSecondary("session"));
   $("threadStatsButton").addEventListener("click", (event) => {
     event.stopPropagation();
@@ -5956,6 +6195,30 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", (event) => {
+    const sessionPicker = $("sessionPicker");
+    if (sessionPicker && !sessionPicker.hidden) {
+      if (
+        event.key === "Escape" ||
+        ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "k")
+      ) {
+        event.preventDefault();
+        closeSessionPicker();
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        $("sessionPickerInput")?.focus();
+        return;
+      }
+      return;
+    }
+    const sessionPickerToggle =
+      (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "k";
+    if (sessionPickerToggle && $("panelBackdrop").hidden && !state.activeExtensionDialog) {
+      event.preventDefault();
+      openSessionPicker();
+      return;
+    }
     const commandPalette = $("commandPalette");
     if (commandPalette && !commandPalette.hidden) {
       if (

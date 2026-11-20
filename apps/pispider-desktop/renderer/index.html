@@ -409,6 +409,34 @@
       </section>
     </div>
 
+    <div class="command-palette" id="sessionPicker" hidden>
+      <section class="command-palette-card" role="dialog" aria-modal="true" aria-labelledby="sessionPickerTitle">
+        <div class="command-palette-head">
+          <div>
+            <div class="command-palette-kicker">会话导航</div>
+            <h2 id="sessionPickerTitle">恢复会话</h2>
+          </div>
+          <kbd>Esc</kbd>
+        </div>
+        <input
+          class="command-palette-input"
+          id="sessionPickerInput"
+          type="search"
+          placeholder="搜索会话标题、路径或最近消息…"
+          autocomplete="off"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="sessionPickerList"
+          aria-label="搜索会话"
+        />
+        <div class="command-palette-list" id="sessionPickerList" role="listbox" aria-label="会话列表"></div>
+        <div class="command-palette-foot">
+          <span><kbd>↑↓</kbd> 选择 · <kbd>Enter</kbd> 打开</span>
+          <span><kbd>Ctrl+Shift+K</kbd> 再次打开</span>
+        </div>
+      </section>
+    </div>
+
     <div class="shortcuts-dialog" id="shortcutsDialog" hidden>
       <section class="shortcuts-card" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle">
         <div class="shortcuts-head">
@@ -442,6 +470,7 @@
           <section class="shortcut-group">
             <h3>导航与弹层</h3>
             <div class="shortcut-row"><span>搜索任务</span><kbd>Ctrl+K</kbd></div>
+            <div class="shortcut-row"><span>恢复会话导航</span><kbd>Ctrl+Shift+K</kbd></div>
             <div class="shortcut-row"><span>跳到最早消息窗口</span><kbd>Ctrl+Home</kbd></div>
             <div class="shortcut-row"><span>回到最新消息</span><kbd>Ctrl+End</kbd></div>
             <div class="shortcut-row"><span>输入框外聚焦搜索</span><kbd>/</kbd></div>
