@@ -858,6 +858,9 @@ npm run pispider:desktop
 - Portable 启动冒烟：使用隔离 `PISPIDER_HOME=E:\mygit\SpiderBuddy\.artifacts\portable-home`、`--remote-debugging-port=9351`；约 50 秒后 CDP 返回 `page / PiSpider` 与 `webview / about:blank`，主窗口标题 `PiSpider`，确认 7 个 `PiSpider` 子进程。
 - Portable 设置窗口：CDP 打开 `settings` 后页面标题 `PiSpider · 设置`，`getTheme()` 返回 `{ ok: true, customTheme: null }`，`.theme-card` 存在、`.theme-swatch` 为 0，说明 `theme-card.js` 在打包产物内正常加载。
 - `win-unpacked/PiSpider.exe` 同样直接启动并返回 CDP 页面（9352），说明 asar 与 helper 修复有效；portable 此前的失败是检查过早，不是包装不可用。
+- NSIS 静默安装 / 卸载：`PiSpider Setup 0.1.0.exe /S` 退出码 0，安装到 `C:\Users\Admin\AppData\Local\Programs\PiSpider`；`PiSpider.exe` 250,056,704 字节、`Uninstall PiSpider.exe` 171,827 字节；HKCU 卸载项显示 `PiSpider 0.1.0` / Publisher `wangh00`，开始菜单生成 `PiSpider.lnk`。
+- 安装版启动：隔离 `PISPIDER_HOME=E:\mygit\SpiderBuddy\.artifacts\nsis-home`、`--remote-debugging-port=9354`，CDP 返回 `page / PiSpider`；设置页标题 `PiSpider · 设置`，`.theme-card` 存在、`.theme-swatch=0`，`bodyWidth=1060`、`viewport=1060`，无横向溢出。
+- 卸载：`Uninstall PiSpider.exe /S` 退出码 0，安装目录、开始菜单快捷方式和 HKCU 卸载注册项均消失，`Get-Process PiSpider` 无残留。测试用 `nsis-home` 已删除。
 - UI 基线：`npm run ui:baseline` 生成 `theme-card-builtin-light.png`、`theme-card-builtin-dark.png`、`theme-card-custom-light.png`、`theme-card-custom-dark.png`、`theme-card-custom-narrow.png`；`report.json` 记录内置卡 1012×173.52 / 0 色块、自定义卡 1012×241.52 / 2 色块、窄宽卡 312×352.70 / 2 色块，均无横向溢出。
 - 组件测试：`theme-card.test.mjs` 4/4、`package-files.test.mjs` 1/1；完整 `npm test --workspace apps/pispider-desktop` 63/63 通过。
 
@@ -874,7 +877,7 @@ npm run pispider:desktop
 
 ### 遗留
 
-- NSIS 安装包只完成构建，未执行安装 / 卸载流程实测；portable 首次启动需等待自解压，尚未做进度提示。
+- NSIS 已完成 `/S` 静默安装 / 卸载冒烟，交互式安装向导的可视化步骤尚未逐页点击；portable 首次启动需等待自解压，尚未做进度提示。
 - 代码签名、SmartScreen 信誉、electron-updater 自动更新仍阻塞于证书 / publish 服务（P2-13）。
 - Linux（AppImage / deb）与 macOS（dmg / zip、Developer ID / 公证）缺对应构建环境，未开始。
 - 截图基线目前覆盖主题卡；消息列表、二次窗口整页等更大范围基线尚未建立。

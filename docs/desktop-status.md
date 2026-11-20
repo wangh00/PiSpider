@@ -73,7 +73,7 @@
 | 开发模式（Electron） | 仓库根 `npm run pispider:desktop` | 映射 `npm run start --workspace=pispider-desktop`（`electron .`）；首次需按 development.md §2 安装应用目录内 Electron |
 | 便携版 | `apps/pispider-desktop/release/win-unpacked/PiSpider.exe` | 解包目录，随包 launcher + core runtime；已做只读 CDP 冒烟 |
 | Portable 单文件 | `apps/pispider-desktop/release/PiSpider Portable 0.1.0.exe` | 单文件自解压到临时目录再启动，首次启动需等待解包；已做只读 CDP 冒烟，未签名 |
-| 安装版 | `apps/pispider-desktop/release/PiSpider Setup 0.1.0.exe` 安装后启动 | NSIS 非 oneClick、可选安装目录；安装器本身尚未执行实测，仅冒烟过 win-unpacked 与 portable |
+| 安装版 | `apps/pispider-desktop/release/PiSpider Setup 0.1.0.exe` 安装后启动 | NSIS 非 oneClick、可选安装目录；已完成 `/S` 静默安装 / 卸载冒烟，安装版启动与设置页加载正常；交互式向导尚未逐页点击 |
 | CLI 对照 | 仓库根 `npm run pispider` | 非桌面入口，用于对照 CLI 行为 |
 
 **单实例告诫**：CLI 与桌面共用同一份 `$PISPIDER_HOME` 配置与会话目录（含 `agent/desktop.json`），但不是同一进程；同一时间只应跑一个实例，避免并发写同一会话或配置文件造成覆盖。桌面第二实例启动会聚焦已有窗口。
@@ -154,7 +154,7 @@
 | --- | --- | --- | --- |
 | P2-12 | 动效统一、自定义主题导入 | 已完成（2026-11-20） | 视觉打磨：设置页导入 JSON 主题（22 个颜色变量、亮 / 暗 palette、64 KB 上限），导入 / 恢复同步双窗口并持久化 `desktop.json`；两套 CSS 动效时长统一走 tokens |
 | P2-13 | 代码签名与自动更新（electron-updater） | 外部阻塞：证书 / publish 服务 | 对外分发基础设施 |
-| P2-14 | macOS / Linux 包与 portable 单文件目标 | Windows portable 已完成（2026-11-20）；Linux / macOS 待对应平台构建环境 | 跨平台分发；Windows x64 现有 NSIS + portable + win-unpacked；portable 已冒烟 |
+| P2-14 | macOS / Linux 包与 portable 单文件目标 | Windows portable 已完成（2026-11-20）；NSIS 已完成静默安装 / 卸载冒烟；Linux / macOS 待对应平台构建环境 | 跨平台分发；Windows x64 现有 NSIS + portable + win-unpacked |
 
 ## d. 刻意不做清单
 

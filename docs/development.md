@@ -150,7 +150,7 @@ MCP 与离线降级：
 - stdio 预置 MCP 懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`；安装优先用 `resources/npm/bin/npm-cli.js`，由 `PiSpider.exe` 加 `ELECTRON_RUN_AS_NODE=1` 执行，其次回退系统 PATH npm；两者都缺失时，目录与命令列表走可读的中文降级提示，不报错崩溃。
 - 打包实例与 dev 实例共享 `PISPIDER_HOME/agent` 下的会话与配置；Electron userData profile 按 productName 隔离，localStorage / 主题互不影响。
 
-尚未做：可执行文件与安装包代码签名、electron-updater 自动更新、macOS / Linux 目标。portable 单文件已构建并做过隔离 home + CDP 只读启动冒烟；NSIS 安装流程尚未执行安装实测。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。升级随包 core 用 `npm run pispider:core-version -- <x.y.z>` 同步三处 `CORE_VERSION`，根 `npm run check` 与 `npm run pispider:check` 会校验一致性。
+尚未做：可执行文件与安装包代码签名、electron-updater 自动更新、macOS / Linux 目标。portable 单文件已构建并做过隔离 home + CDP 只读启动冒烟；NSIS 已完成 `/S` 静默安装 / 卸载冒烟，安装版启动与设置页正常，交互式向导尚未逐页点击。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。升级随包 core 用 `npm run pispider:core-version -- <x.y.z>` 同步三处 `CORE_VERSION`，根 `npm run check` 与 `npm run pispider:check` 会校验一致性。
 
 ## 3. 使用本仓库构建的 Pi
 

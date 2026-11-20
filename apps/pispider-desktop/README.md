@@ -91,7 +91,7 @@ resources/
 - MCP stdio 预置懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`。安装时优先用 `resources/npm/bin/npm-cli.js`（通过 `PiSpider.exe` + `ELECTRON_RUN_AS_NODE=1` 执行），其次用系统 PATH 中的 npm；两者都没有时目录与命令列表显示可读中文降级。随包 npm 固定为 10.9.8，许可证随 `resources/npm/LICENSE` 分发。
 - 打包实例与 dev 实例共享 `PISPIDER_HOME/agent` 会话与配置；Electron userData profile 按 productName 隔离，localStorage / 主题互不影响。
 
-未做：代码签名、electron-updater 自动更新、macOS / Linux 目标。portable 单文件已构建并做过隔离 `PISPIDER_HOME` + CDP 只读启动冒烟；NSIS 安装流程尚未执行安装实测。
+未做：代码签名、electron-updater 自动更新、macOS / Linux 目标。portable 单文件已构建并做过隔离 `PISPIDER_HOME` + CDP 只读启动冒烟；NSIS 已完成 `/S` 静默安装 / 卸载冒烟，安装版启动与设置页正常，交互式向导尚未逐页点击。
 
 ## 第一次使用
 

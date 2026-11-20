@@ -125,7 +125,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 | --- | --- | --- | --- |
 | Pi 高级 settings | 设置 → 高级设置卡：transport、HTTP proxy、shell path、defaultTools、compaction 开关与 token 参数 | 已接 | 写用户级 `settings.json`，保存后重启 Agent；compaction `modelOverrides` 原样保留；项目级 `.pi/settings.json` 仍可能覆盖 |
 | doctor / 诊断日志 | 状态 → 环境诊断 | 部分 | 通过 Pi core CLI 检查版本、当前 provider / model 的认证状态、`pi list` 的 package 声明，并汇总 Node / Electron、配置文件、项目资源与权限；“导出诊断”写脱敏文本报告，含应用信息、环境诊断和最近运行时日志；仍不提供网络诊断或 `pi doctor` 的完整检查项 |
-| Pi / 包更新 | 无 | 部分 | Windows x64 由 electron-builder 26.18.0 产出 NSIS 安装包 `PiSpider Setup <version>.exe`（非 oneClick、perMachine=false）与 portable 单文件 `PiSpider Portable <version>.exe`；`win-unpacked/PiSpider.exe` 与 portable 均经隔离 `PISPIDER_HOME` + CDP 只读冒烟验证；应用图标接入 `build/icon.ico`。未做：代码签名、自动更新、macOS / Linux 目标；NSIS 安装流程仍未执行安装冒烟，portable 首次启动需等待自解压 |
+| Pi / 包更新 | 无 | 部分 | Windows x64 由 electron-builder 26.18.0 产出 NSIS 安装包 `PiSpider Setup <version>.exe`（非 oneClick、perMachine=false）与 portable 单文件 `PiSpider Portable <version>.exe`；NSIS 已完成 `/S` 静默安装 / 卸载冒烟，安装版启动与设置页正常；`win-unpacked/PiSpider.exe` 与 portable 均经隔离 `PISPIDER_HOME` + CDP 只读冒烟验证；应用图标接入 `build/icon.ico`。未做：代码签名、自动更新、macOS / Linux 目标；交互式安装向导尚未逐页点击，portable 首次启动需等待自解压 |
 | print / JSON / RPC / SDK 模式 | 不适用 | 不适用 | 桌面本身通过 RPC 驱动 runtime，不需要给用户暴露这些 CLI 输出模式 |
 | TUI 键位 / terminal 配置 | 不适用 | 不适用 | 桌面使用自己的快捷键，不复制终端 TUI |
 
