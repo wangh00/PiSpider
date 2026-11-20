@@ -101,7 +101,7 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 4. 实时工具按 `toolCallId` 增量更新，状态与输出变化时才更新 live action 行；已写入历史消息的 `toolCallId` 从实时组中过滤，避免历史回合与实时组重复。live final 文本只替换回合卡外的最终内容，保留 `turn-card` 和动作行节点；live action 行只重建末尾的 live 行列表。
 5. 长会话使用完整虚拟滚动：渲染切片以 120 条为基准、上下各留 28 条 overscan，单次最多 200 条；顶部和底部 `message-virtual-spacer` 用已测高度 + 离屏估算高度补齐整段会话，原生滚动条代表完整会话，不再代表某个 120–360 条分段窗口。
 6. 滚动时由 `messageIndexAtOffset()` 选出目标消息，`virtualRangeForIndex()` 生成新切片；`messageHeights` 只保存已渲染消息的真实高度。测量使用 `getBoundingClientRect().height + getComputedStyle().marginBottom`，offsets / spacers 统一按完整流高度计算，避免每条消息少算 24px。离屏消息由 `messageEstimatedHeight()` 分类型估算：用户消息按 `messageList.clientWidth * 0.82 - 26` 的动态正文宽计算连续文本行数，`24 + 41 + 行数 * 24 + 图片行 * 194`；助手正文按 `messageList.clientWidth * 0.82` 动态宽度解析 Markdown，普通段落行高 24，标题按 h1/h2/h3 的 48/36/28 高度，列表按每个条目 24 行高，块间 gap 14（标题 17），fenced code block 为 `56 + 行数 * 20`，Mermaid 代码块先按 280 估算并在 SVG 完成后重测，再加 `24 + 42` 外壳、thinking 行高 24 和错误块 34；带 `_turn` 的最终助手消息额外按 `46`（36px 回合卡头 + 10px 下边距）估算，最终 thinking 已收进卡内不另计折叠高度，展开后的中间文字和动作行以真实测量为准。`renderMarkdown()` 把连续的 `-` / `*` 列表行收成一个 `<ul>`，不再生成裸 `<li>` 或被浏览器补出的 `<br>`。切片切换和流式更新前后用消息 key + 视口偏移恢复锚点，虚拟目标落位后再次保存快照；`messageDataKey` 确保旧会话 DOM 不会在新会话 key 下写入错误滚动位置，`scrollRestorePending` 期间忽略 `rememberScrollPosition()`。会话切换和 reload 优先按 `anchorKey / anchorIndex / anchorOffset` 精确恢复，缺失时回退 `top / ratio`。
-7. 高度缓存按 `sessionFile` + 当前消息布局持久化：`localStorage` 键为 `pispider-message-heights`，版本 4，每条缓存含 `layoutWidth` / `layoutZoom`，只保留最近 10 个会话、每会话最多 5000 条；消息键优先用消息 id，无 id 时用角色 + 时间戳，不再拼切片下标。`resetMessageHeights()` 先按旧会话自己的 `layoutWidth` / `layoutZoom` 保存当前会话，再 seed 目标会话缓存；只有目标缓存的宽度差 ≤2px 且缩放差 ≤0.001 时才种入 `state.messageHeights`，否则保留空表并按当前布局重新测量。`syncMessageHeightLayout()` 在 `renderMessages()` 开头比较 `#messageList.clientWidth` 与 `state.messageHeightLayoutZoom`，布局变化时清空当前会话已测高度、删除该会话缓存、递增 `messageHeightVersion` 并重测当前切片；`resize` 120ms 去抖、面板 `transitionend` / 280ms 兜底、`applyZoom()` 和 `setPanel()` 都会触发重新渲染。布局变化前会记录 `anchorKey / anchorIndex / anchorOffset`，或记录“原本在底部”的意图，重新测量后再恢复锚点 / 回底；因此切换会话、reload、窗口宽度、右栏开合和缩放不会把旧布局高度与新布局混用。`measureRenderedMessages()` 在高度变化后 600ms 去抖写入，`pagehide` 立即 flush。缓存仍没有内容指纹：消息 id 不变但正文被编辑时仍可能沿用旧高度，后续可在消息内容变化时删除对应 key。
+7. 高度缓存按 `sessionFile` + 当前消息布局持久化：`localStorage` 键为 `pispider-message-heights`，版本 5，每条缓存含 `layoutWidth` / `layoutZoom`，只保留最近 10 个会话、每会话最多 5000 条；消息键优先用消息 id，无 id 时用角色 + 时间戳，不再拼切片下标；缓存值改为 `{ height, sign }`，`sign` 是 `messageHeightSignature()` 生成的内容指纹。`resetMessageHeights()` 先按旧会话自己的 `layoutWidth` / `layoutZoom` 保存当前会话，再 seed 目标会话缓存；只有目标缓存的宽度差 ≤2px 且缩放差 ≤0.001 时才种入 `state.messageHeights`，否则保留空表并按当前布局重新测量。`syncMessageHeightLayout()` 在 `renderMessages()` 开头比较 `#messageList.clientWidth` 与 `state.messageHeightLayoutZoom`，布局变化时清空当前会话已测高度、删除该会话缓存、递增 `messageHeightVersion` 并重测当前切片；`resize` 120ms 去抖、面板 `transitionend` / 280ms 兜底、`applyZoom()` 和 `setPanel()` 都会触发重新渲染。布局变化前会记录 `anchorKey / anchorIndex / anchorOffset`，或记录“原本在底部”的意图，重新测量后再恢复锚点 / 回底；因此切换会话、reload、窗口宽度、右栏开合和缩放不会把旧布局高度与新布局混用。`measureRenderedMessages()` 在高度变化后 600ms 去抖写入，`pagehide` 立即 flush。内容指纹覆盖角色、正文 / 思考、图片 mime 与 base64 长度、工具名、命令、退出码和错误文本：消息 id 不变但正文被编辑时，`messageMeasuredHeight()` 不命中旧高度并按新内容重新估算，`messageStructureKey()` 也用同一指纹让历史消息重建；版本 5 之前的数字型缓存不会被加载。
 8. `agent_end` 后不要同时刷新会话、规则、技能、MCP；资源只在 `resources:changed` 时刷新。
 
 ### 4.5 可访问性
@@ -126,7 +126,7 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 - 删除一组已被后续规则覆盖的旧媒体查询，减少样式层叠。
 - 输入框提示补充 `Ctrl+B` / `Ctrl+G`，并新增标题栏快捷键按钮与 `Ctrl+/` / `F1` 总览。
 - 会话列表新增置顶按钮与置顶排序；置顶状态写入 `desktop.json`。
-- 消息列表改为结构签名重建：只有消息数量 / 顺序 / 角色变化时才整体重建；流式 token 只替换当前 live 助手节点；工具卡按状态 / 内容指纹（长度 + hash）签名更新，同长度内容变化也能触发重建。已用两条临时消息验证用户节点引用不变、live 节点单独替换。
+- 消息列表改为结构签名重建：只有消息数量 / 顺序 / 角色 / 历史消息内容指纹变化时才整体重建；流式 token 只替换当前 live 助手节点（live 消息不计入结构指纹，避免逐 token 重建）；工具卡按状态 / 内容指纹（长度 + hash）签名更新，同长度内容变化也能触发重建。已用两条临时消息验证用户节点引用不变、live 节点单独替换。
 - 抽出共用 `tokens.css`：主窗口与二次窗口共用颜色、字体、圆角、阴影变量；删除两份各自复制的 `:root` / 深色块，二次窗口 accent 从 `#2b8f78` 统一到 `#0f766e`。已用 CDP 确认两个窗口计算后的 accent、字体和背景一致，设置窗口无横向溢出。
 - 响应式补 1180 断点：左栏 232、右栏 340、标题目标名截断到 220；启动时 JS 在 1180 以下默认折叠右栏，已删除不会触发的 1040 CSS 规则。
 - 输入区上方新增可操作状态横幅：运行时连接失败给“重试”，桌面信息读取失败给“重新加载”，模型未启用图像输入给“打开设置”；支持关闭和操作后自动隐藏。已用 CDP 验证显示、操作回调与关闭。
@@ -180,6 +180,8 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 - MCP 生态可用性第一轮（2026-11-19）：manifest 的 MCP 条目新增 `transport`（`stdio` / `http`）、`url`、`headers`，`url` / `headers` 同样支持 `${input.<id>}` 等占位符；HTTP 预置不要求 `package`，也不支持随包技能声明。加载器支持 `transport` 省略时按 `url` 推断，`catalogServerSummary` 用真实类型和接口地址生成虚拟卡；`listMcpServers` 对已写入配置的 HTTP 预置不再用 npm 安装状态覆盖 `installed`，改用独立 `configured` 字段驱动检查 / 编辑 / 删除 / 重连等配置操作。加入 Context7 后，MCP 窗口显示 `2 个服务器 / 2 预置 / 0 启用`，两张卡都只保留“准备并启动 / 说明”；Context7 的说明弹层显示接口地址和“无需本地安装”。点击 Context7 的“准备并启动”时卡片显示“配置中”，跳过 npm 安装，写入 `url` 配置，空闲时自动重载；CDP 实测约 4 秒后摘要变为 `1 / 1 已连接`，卡片显示“已启用”“已连接 · 2 个工具”，工具为 `resolve-library-id` / `query-docs`，配置写入 `~/.pispider/agent/mcp.json`。截图 `pispider-context7-connected.png`。
 
 - 内置斜杠命令与变更日志对话框（2026-11-19）：输入框 `/` 建议项每条带来源徽标，按 `builtin / extension / prompt / skill` 标注「内置 / 扩展 / 模板 / 技能」，徽标样式沿用 `tokens.css` 变量；内置命令排在 RPC 命令之前，同名时内置优先。`/changelog` 在主窗口弹只读对话框，结构与样式沿用快捷键对话框（遮罩模态、`Esc` / 关闭按钮 / 遮罩点击关闭、焦点回归），正文用既有 `renderMarkdown` 渲染运行时 CHANGELOG，标题附带版本号；读取失败时 toast 提示。内置命令在发送和 `Ctrl+Enter` 插话两条路径上都先本地拦截，不发给模型；未知命令 toast 报错并保留输入。
+- 图片消息渲染与高度指纹（2026-11-20）：`renderAssistantContent()` 按 block 顺序渲染 `image` block，连续图片收进 `.message-images` 条；用户消息改用同一 `renderMessageImageStrip()`，工具结果在 `.tool-body` 末尾追加“图片”分区，只有图片时摘要显示“N 张图片”。图片是 data URL `<img>`，不做 `innerHTML` 拼接；`load` / `error` 后触发一次 `refreshActionGroupLayout()` 重测高度，避免解码前把虚拟占位估算留成 0 高。高度缓存升到版本 5，值从数字改为 `{height, signature}`：`messageHeightSignature()` 覆盖角色、正文 / 思考 head+tail、图片 mime 与 base64 长度、工具名、命令、退出码和错误文本，`messageStructureKey()` 对非 live 消息也带同一指纹，因此 id 不变但正文被编辑时会重绘并重新测量，live 流式消息仍不进入结构指纹。CDP 实测：助手消息 1 张图且顺序为文本 / 图片 / 文本，工具结果 2 张图并显示“2 张图片”；同一 id 文本从 `hello` 改为 `hello changed content` 后 `messageMeasuredHeight` 从缓存 100 回落到估算 90，`messageStructureKey` 随内容变化。
+- 恢复会话导航（2026-11-20）：新增 `#sessionPicker` 模态（复用命令面板卡片样式），`/resume` 与 `Ctrl+Shift+K` 打开；输入框按标题、路径、cwd、最近消息预览做多 token 过滤，列表按置顶 / 最近分组，当前会话标“当前”；`↑↓` 循环选择、`Enter` 切换、`Esc` / 遮罩点击关闭并归还焦点。`openSessionPicker()` 打开后会刷新一次 `listSessions()`，切换仍走既有 `switchSession()`（含滚动位置保存与高度缓存重置）。CDP 实测：`/resume` 打开后焦点在 `sessionPickerInput`，`Ctrl+Shift+K` 同样打开，`Esc` 关闭；注入两条会话后按 `beta` / `alpha alpha` 过滤结果正确，分组为“置顶会话 / 最近会话”，方向键从 Beta 移到 Alpha。
 
 ## 6. 路线图
 
@@ -193,7 +195,7 @@ P1：
 1. 左栏信息架构继续收敛：资源入口已压成 2×2，仍有项目行 / 搜索 / 会话分组需要进一步降噪。
 2. 会话列表增加按项目筛选，当前只按时间和置顶分组。
 3. 状态反馈聚合：主界面已有会话用量入口，但运行状态、队列、MCP pending 和错误横幅仍分散在标题栏 / 输入区 / 二次窗口，下一步收敛到统一运行状态入口。
-4. 完整虚拟滚动、真实高度和按会话持久化已落地并压测；240 条混合探针首次打开总高度差已从 `-900.8px` 校准到 `-39.6px`（约 0.02%）。窗口宽度 / 缩放 / 面板开合已按布局失效并保留锚点，10px 级滚动条宽度差按新布局保守清空。剩余风险是图片消息和消息内容变更后 id 不变时缓存不按内容失效；可继续做分段预测量或内容指纹校验。本轮未在 714 / 685 等新宽度下做全量真实总高度对比，离屏仍按新宽度估算，后续可补这项基准。
+4. 完整虚拟滚动、真实高度和按会话持久化已落地并压测；240 条混合探针首次打开总高度差已从 `-900.8px` 校准到 `-39.6px`（约 0.02%）。窗口宽度 / 缩放 / 面板开合已按布局失效并保留锚点，10px 级滚动条宽度差按新布局保守清空。图片消息与内容变更后的缓存失效已由版本 5 内容指纹补齐。本轮未在 714 / 685 等新宽度下做全量真实总高度对比，离屏仍按新宽度估算，后续可补这项基准。
 
 P2：
 

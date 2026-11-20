@@ -373,3 +373,65 @@ npm run pispider:desktop
 - 启动矩阵：development.md 与 status 一致——开发 `npm run pispider:desktop`、便携版 `release/win-unpacked/PiSpider.exe`、安装版 `release/PiSpider Setup <version>.exe`、CLI 对照 `npm run pispider`；单实例告诫一致（共享 `PISPIDER_HOME/agent` 与 `desktop.json`，同一时间只跑一个实例）。
 - 路径 / 命令抽查：两个 release 产物、`build/icon.ico`、`scripts/pispider-desktop-debug.mjs`、三处 CORE_VERSION 文件、四个桌面测试文件、截图目录 `docs/ui-refresh-2026-11-19/` 均存在；根 npm 脚本映射（`pispider:desktop` / `pispider:desktop:debug` / `pispider:doctor` / `pispider:migrate` / `pispider:setup` / `pispider:check` / `pispider:test`）齐全。
 - 保留未改：审计判定仍准确的缺口声明（队列 RPC 缺口、Radius 路径、树节点删除、逐模型档位、高级 settings 手写、doctor 日志导出、签名 / 自动更新 / mac-Linux / portable、`author` 警告）；acceptance 历史条目（含旧测试数字与打包前记录）按规则不改写。
+
+## 9. 正确性补口与版本控制（2026-11-20）
+
+### 版本控制
+
+- 在 `E:\mygit\SpiderBuddy` 初始化 `main` 分支，按显式路径暂存 4724 个文件（`node_modules/`、`apps/pispider-desktop/release/`、`dist/`、`.artifacts/` 均被 `.gitignore` 排除），基线提交 `b14f660 feat: import PiSpider monorepo baseline`。
+- 远程 `origin` 指向 `https://github.com/wangh00/PiSpider.git`，`git push -u origin main` 成功（exit 0）。
+- 本轮后续代码与文档改动拆成 focused commit 推送；未使用 `git add -A`，未改写历史。
+
+### 改动文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/renderer/app.js` | 图片 block 渲染（助手 / 用户共用 strip、工具结果“图片”分区）、图片解码后重测高度；高度缓存版本 5 `{height, signature}`；`messageHeightSignature()` + 非 live 消息结构指纹；`#sessionPicker` 打开 / 过滤 / 渲染 / 键盘选择 / 关闭逻辑，`/resume` 与 `Ctrl+Shift+K` 接入 |
+| `apps/pispider-desktop/renderer/index.html` | 新增 `#sessionPicker`（复用命令面板卡片样式）；快捷键总览补 `Ctrl+Shift+K` |
+| `apps/pispider-desktop/README.md` | 补 `/resume` 独立导航与 20 条快捷键 |
+| `docs/commands.md` | `/resume` 行改为独立导航说明 |
+| `docs/desktop-status.md` | 已落地能力补“正确性补口”；P0 表标注 P0-1 / P0-3 / P0-4 已完成；版本控制说明更新 |
+| `docs/desktop-parity.md` | 消息渲染行补图片 block；`/resume` 与 §7 P0 顺序更新 |
+| `docs/desktop-ui.md` | §4.4 缓存说明改为版本 5 内容指纹；§5 追加两条落地记录；§6 风险项更新 |
+
+### 图片渲染与高度指纹（P0-3）
+
+- 助手消息按 block 顺序渲染文本 / 思考 / 图片；连续图片收进一个 `.message-images`，文本再出现时新建下一条；用户消息复用同一 `renderMessageImageStrip()`；工具结果在折叠卡内追加“图片”分区，只有图片时摘要为“N 张图片”。
+- 图片使用 data URL `<img>`（不经 `innerHTML`），`load` / `error` 后触发一次高度重测，避免解码前零高估算被写入虚拟占位。
+- 高度缓存 `MESSAGE_HEIGHT_CACHE_VERSION = 5`，`state.messageHeights` 值改为 `{height, signature}`；持久化格式为 `{h, s}`，旧版本数字缓存不加载。`messageHeightSignature()` 覆盖角色、`_turn`、正文 / 思考 head+tail、图片 mime 与 base64 长度、工具名、命令、退出码、错误文本和 toolCall 参数；`messageMeasuredHeight()` 仅在签名一致时采用旧高度。
+- `messageStructureKey()` 对非 live 消息附带同一签名，live 流式消息保持空签名，避免逐 token 全量重建。
+
+### 恢复会话导航（P0-4）
+
+- `#sessionPicker` 复用命令面板视觉；`openSessionPicker()` 打开后刷新一次 `listSessions()`，输入按标题 / 路径 / cwd / preview 多 token 过滤；列表按“置顶会话 / 最近会话”分组，当前会话显示“当前”；`↑↓` 循环、`Enter` 切换、`Esc` / 遮罩关闭并归还焦点。
+- `/resume` 不再聚焦左栏搜索框，改走 `openSessionPicker()`；新增 `Ctrl+Shift+K` 全局快捷键与命令面板“恢复会话”动作；左栏搜索框的全文本搜索能力保持不变。
+- 切换仍复用既有 `switchSession()`：保存滚动位置、重置切片与高度缓存、必要时重启 runtime。
+
+### 检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0（biome 2575 文件、pinned/runtime/ts-imports/entry-graphs/install-lock、tsc、browser-smoke） |
+| 2 | `npm run pispider:check` | exit 0 |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `node --test scripts/pispider-launcher.test.mjs scripts/pispider-migrate.test.mjs` | 14/14 pass |
+| 5 | `cd apps/pispider-desktop; npm test` | 43/43 pass |
+
+### CDP 验证
+
+在隔离环境启动开发版 Electron：`--remote-debugging-port=9348`、`--user-data-dir=.artifacts/ui-userdata`、`PISPIDER_HOME=.artifacts/ui-home`，不触碰用户 `~/.pispider` 会话与配置；验证后停止进程并删除临时目录。结果：
+
+- 助手消息：`.message-images img` 数量 1，子节点顺序为 `message-label → 文本 → 图片 → 文本 → 复制`。
+- 工具结果：2 张图片均渲染，“图片”分区存在，摘要为“2 张图片”。
+- 高度指纹：同一 id 文本 `hello` 改为 `hello changed content` 后，`messageMeasuredHeight` 从缓存值 100 回落到估算 90；`messageHeightSignature` 与 `messageStructureKey` 均变化。
+- 会话导航：`/resume` 打开后焦点为 `sessionPickerInput`；`Ctrl+Shift+K` 同样打开；`Esc` 关闭。注入 Alpha / Beta 两条会话后：`beta` 过滤只剩 Beta，`alpha alpha` 多 token 过滤只剩 Alpha，分组为“置顶会话 / 最近会话”，方向键从 Beta 移到 Alpha。
+
+### 未验证 / 遗留
+
+- 未在隔离实例里执行真实的跨会话切换（会启动 runtime 并写临时会话）；切换链路沿用既有 `switchSession()`，未改。
+- 队列逐条删除仍等上游 `get_queue` / `remove_queue_item`，本轮未动。
+- 打包产物未重建：`release/win-unpacked` 与安装包仍是改版前的 asar；需要新安装包时执行 `cd apps/pispider-desktop; npm run dist:win`。
+- 当前运行中的便携版实例仍是旧渲染代码；开发版 `npm run pispider:desktop` 启动后即加载本轮改动。
+
+
+

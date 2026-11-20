@@ -70,7 +70,7 @@
 | --- | --- | --- | --- |
 | 工具 allowlist / exclude / 禁用内置工具 | 输入框权限胶囊 | 部分 | 每个会话可选“全部允许 / 只读 / 禁用工具”；只读使用 `--tools read,grep,find,ls --exclude-tools mcp__*`，禁用使用 `--no-tools`；细粒度 allowlist 仍需改配置 |
 | Windows 桌面 Agent shell | Agent 工具集 | 已接 | `PISPIDER_DESKTOP=1` 且 active tools 含 `bash` 时，PiSpider 扩展在 `session_start` / `before_agent_start` 把 `bash` 替换为 `powershell`，系统提示引导模型使用 PowerShell；只读 / 禁用工具模式不触发。用户 `!` / `!!` 仍由 `user_bash` 扩展走 PowerShell，Pi 负责记录 |
-| 消息与工具结果渲染 | 消息列表 | 已接 | Markdown 支持标题、段落、无序 / 有序列表、引用、表格、删除线、链接、行内代码、fenced code block 和常见语言关键字 / 字符串 / 数字 / 注释高亮；每个用户回合内的工具结果 / shell 动作、运行中的工具和中间助手文字按原顺序收进一个可折叠回合卡，卡头显示“用时 X · N 个动作”或“正在运行 · 当前命令”，最终回复留在卡外可见，展开后逐条显示工具类型、摘要、参数、实时输出 / 结果和状态；Mermaid 代码块由裁剪后的本地 `mermaid@12.3.0` 运行时懒加载渲染，只保留 flowchart / sequence（含 flowchart-elk），失败时显示错误并展开源码，其他图类型给出明确不支持提示；打包只带 `vendor/mermaid`，排除完整 `node_modules/mermaid` |
+| 消息与工具结果渲染 | 消息列表 | 已接 | Markdown 支持标题、段落、无序 / 有序列表、引用、表格、删除线、链接、行内代码、fenced code block 和常见语言关键字 / 字符串 / 数字 / 注释高亮；用户、助手和工具结果里的 image block 统一渲染为图片条（工具卡内为“图片”分区，仅有图片时摘要显示“N 张图片”）；每个用户回合内的工具结果 / shell 动作、运行中的工具和中间助手文字按原顺序收进一个可折叠回合卡，卡头显示“用时 X · N 个动作”或“正在运行 · 当前命令”，最终回复留在卡外可见，展开后逐条显示工具类型、摘要、参数、实时输出 / 结果和状态；Mermaid 代码块由裁剪后的本地 `mermaid@12.3.0` 运行时懒加载渲染，只保留 flowchart / sequence（含 flowchart-elk），失败时显示错误并展开源码，其他图类型给出明确不支持提示；打包只带 `vendor/mermaid`，排除完整 `node_modules/mermaid` |
 | 权限作用域 | 输入框权限胶囊 | 已接 | 按会话文件路径写入 `desktop.json` 的 `sessionPermissions`，缺失时回退 `projectPermissions[repoRoot]`；切换会话时按目标会话权限重启 runtime |
 | `codemode` / `tool_search` | MCP 窗口 → 工具暴露 | 已接 | 服务器级 `exposure` 下拉和逐工具启停列表已接；未发现工具时提示先检查，未知工具仍可手动编辑 `mcp.json`。MCP 窗口通过 RPC `mcp_status` 读取扩展实际连接状态、失败原因和已发现工具；打开、检查后仍可全量刷新，连接中 / 已连接 / 失败等变化由 `mcp_status_changed` 会话事件推送并原地更新 |
 | MCP live state | MCP 窗口 | 已接 | RPC `mcp_status` 返回 `servers / errors`：每个服务器含 `state`、`enabled`、`tools`、`hasResources`、`error`、`source`、`scope`、`transport`、`exposure`；面板显示“Agent 实时”或“离线检查”，配置已保存但 runtime 未加载的服务器显示“需重载 Agent”。扩展通过 `registerMcpStatusProvider` 的可选 `subscribe` 上报变化，`AgentSession` 转成 `mcp_status_changed` 事件，主进程推给 MCP 子窗口；重载 / 重连时无需手动检查。Agent 未运行时回退到本地 stdio / HTTP probe |
@@ -109,7 +109,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 | `/logout` | 打开设置窗口提示退出提供商 | 已接 | 不在主窗口直接删除认证，避免误删 |
 | `/new` | 复用既有新建会话流程 | 已接 | |
 | `/compact` | 调用 `compact`，非空说明作为 `customInstructions` | 已接 | Agent 运行中阻止 |
-| `/resume` | 聚焦左栏会话搜索框切换 / 恢复 | 已接 | |
+| `/resume` | 打开独立“恢复会话”导航（搜索、方向键、Enter 切换） | 已接 | 也可用 `Ctrl+Shift+K`；左栏搜索框仍提供全文搜索结果 |
 | `/reload` | 复用顶部“重载 Agent”流程 | 已接 | |
 | `/quit` | 退出应用，走既有 `before-quit` 清理路径 | 已接 | |
 
@@ -118,7 +118,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 - 队列逐条删除：需要上游新增 `get_queue` / `remove_queue_item` RPC（见排队两行）。
 - `/share` 的 Radius artifact 路径与分享目的地设置。
 - 会话树节点删除 / 排序；逐模型思考档位 UI。
-- `/resume` 独立会话导航：当前复用会话搜索框聚焦，尚未接独立导航入口。
+- `/resume` 独立会话导航：已接，独立弹层支持标题 / 路径 / 预览搜索与键盘切换（`Ctrl+Shift+K`）。
 
 ## 6. 运维与高级设置
 
@@ -151,10 +151,10 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 
 **P0：数据安全与高频核心体验**
 
-1. 建立版本控制：仓库目录暂无 `.git`，三轮大量改动缺少兜底；需用户决策初始化仓库或确认工作副本来源。桌面可独立做（非技术阻塞）。
+1. 建立版本控制：已完成。`.git` 初始化，远程 `https://github.com/wangh00/PiSpider`，`main` 已推送（2026-11-20）。
 2. 队列逐条删除 / 恢复：当前为只读查看、逐项复制和全部清空降级；阻塞于上游 `get_queue` / `remove_queue_item` RPC 缺口。
-3. UI 遗留正确性：图片消息渲染、内容变更后的缓存失效。桌面可独立做，详见 [desktop-ui.md](desktop-ui.md)。
-4. `/resume` 独立会话导航：当前复用会话搜索框聚焦；桌面可独立做。
+3. UI 遗留正确性：已完成。图片消息（用户 / 助手 / 工具结果）统一渲染；高度缓存版本 5 带内容指纹，正文变更后失效重测。
+4. `/resume` 独立会话导航：已完成。独立“恢复会话”弹层，支持搜索与键盘切换（`Ctrl+Shift+K`）。
 
 **P1：功能完整与打包维护**
 

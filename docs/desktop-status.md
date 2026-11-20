@@ -6,13 +6,14 @@
 
 ## a. 现状快照（截至 2026-11-20）
 
-### 已落地的三批能力
+### 已落地能力
 
 | 批次 | 内容 | 细节指针 |
 | --- | --- | --- |
 | 内置斜杠命令 | 24 个内置命令在发送前于桌面层本地拦截执行，支持带参形式与来源徽标；扩展 / 模板 / 技能命令数据来自 RPC `get_commands`，仍走 prompt 执行 | [commands.md](commands.md)「桌面内置斜杠命令」；[desktop-parity.md](desktop-parity.md) §5.1 |
 | 黑白灰阶 UI | 亮 / 暗双主题；1px hairline 边框（亮 `rgba(0,0,0,0.06)`、暗 `rgba(255,255,255,0.08)`）；炭黑 / 雪白主按钮；辅助信息 11px、opacity 0.45；主窗口与二次窗口共用 `renderer/tokens.css` | [desktop-ui.md](desktop-ui.md) §4.2；截图目录 `docs/ui-refresh-2026-11-19/`（21 张，dark 11 / light 10） |
 | Windows 打包 | electron-builder 26.18.0 精确锁版；NSIS 安装包 `PiSpider Setup 0.1.0.exe` 与 `win-unpacked/` 便携版；随包 launcher + core 1.5.2 runtime；三处 Agent 子进程 spawn 用 Electron 二进制 + `ELECTRON_RUN_AS_NODE=1`；最小 PATH（无系统 Node）冒烟 RPC ready；stdio MCP 读不到 npm CLI 时走中文降级 | [development.md](development.md)「打包（Windows）」 |
+| 正确性补口 | 用户 / 助手 / 工具结果图片消息统一渲染；消息高度缓存版本 5 带内容指纹，正文变更即失效；独立“恢复会话”导航（`/resume` / `Ctrl+Shift+K`） | [desktop-ui.md](desktop-ui.md) §5；[acceptance.md](acceptance.md) §9 |
 
 其余已落地能力（会话控制、模型 / 思考档位 / 会话权限、规则 / 技能 / 提示词 / MCP / 扩展管理、浏览器与代码页、上下文用量、provider OAuth 三家等）的逐项对照见 [desktop-parity.md](desktop-parity.md) §1–§6；UI 已落地清单见 [desktop-ui.md](desktop-ui.md) §5。
 
@@ -32,7 +33,7 @@
 
 - 安装包与便携版位于 `apps/pispider-desktop/release/`：`PiSpider Setup 0.1.0.exe`（152,994,543 字节）、`win-unpacked/PiSpider.exe`（250,056,704 字节）；应用图标 `apps/pispider-desktop/build/icon.ico`（六尺寸）。
 - 打包 staging `apps/pispider-desktop/build/packaged/` 已清理；执行 `cd apps/pispider-desktop; npm run dist:win` 会经 `prepare:packaged` 幂等重建后再出包。
-- 仓库目录当前无 `.git`，三轮改动没有版本兜底；处置见路线图 P0-1。
+- 仓库已完成版本控制：`main` 分支初始化并推送到 `https://github.com/wangh00/PiSpider`（2026-11-20）；`release/`、`node_modules`、`dist/` 等仍在 `.gitignore` 内，不进入仓库。
 
 ## b. 新会话接手指引
 
@@ -44,7 +45,7 @@
 4. [development.md](development.md) — 环境准备、启动、打包、测试流程。
 5. [desktop-ui.md](desktop-ui.md) — UI 信息架构、视觉基线与性能方向。
 6. [commands.md](commands.md) — `/ps` 命令、`ps_task`、数据目录与环境变量速查。
-7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§8 文档梳理与一致性核对，2026-11-20；§7 Windows 打包验收，2026-11-20），历史条目不作为现状依据。
+7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
 
 补充参考：[architecture.md](architecture.md)（分层与 RPC 链路）、[desktop-runtime-contract.md](desktop-runtime-contract.md)（RPC 契约）、[apps/pispider-desktop/README.md](../apps/pispider-desktop/README.md)（Electron 运行链路与 IPC）。
 
@@ -116,12 +117,12 @@
 
 ### P0：数据安全与高频核心体验
 
-| # | 事项 | 阻塞依赖 | 理由 / 判定 |
+| # | 事项 | 状态 | 说明 |
 | --- | --- | --- | --- |
-| P0-1 | 建立版本控制：仓库目录无 `.git`，三轮改动无兜底；初始化或确认工作副本来源 | 需用户决策；非技术阻塞 | 一切后续改动可追溯性的前提；桌面可独立做 |
-| P0-2 | 队列逐条删除 / 恢复：当前为只读查看、逐项复制与全部清空降级 | 上游阻塞：RPC 仅有 `clear_queue`，缺 `get_queue` / `remove_queue_item` | 对话流控制核心体验，高频交互缺口 |
-| P0-3 | UI 遗留正确性：图片消息渲染、内容变更但 id 不变时的缓存失效 | 无；桌面可独立做 | 影响对话内容可读性，属正确性而非打磨 |
-| P0-4 | `/resume` 独立会话导航：现状仅复用会话搜索框聚焦 | 无；桌面可独立做 | 高频入口，成本低 |
+| P0-1 | 建立版本控制 | 已完成（2026-11-20） | `.git` 已初始化，远程 `https://github.com/wangh00/PiSpider`，`main` 已推送 |
+| P0-2 | 队列逐条删除 / 恢复 | 剩余 | 上游阻塞：RPC 仅有 `clear_queue`，缺 `get_queue` / `remove_queue_item` |
+| P0-3 | UI 遗留正确性：图片消息渲染、内容变更但 id 不变时的缓存失效 | 已完成（2026-11-20） | 用户 / 助手 / 工具结果图片统一渲染；高度缓存升到版本 5 并带内容指纹，正文变更后自动失效重测 |
+| P0-4 | `/resume` 独立会话导航 | 已完成（2026-11-20） | 独立“恢复会话”弹层，支持标题 / 路径 / 预览搜索、`↑↓` 与 `Enter` 切换；快捷键 `Ctrl+Shift+K` |
 
 ### P1：功能完整与打包维护
 
