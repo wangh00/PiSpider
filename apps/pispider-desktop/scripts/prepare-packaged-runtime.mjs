@@ -5,6 +5,7 @@
 //   launcher/scripts/pispider-launcher.mjs
 //   launcher/packages/pispider/{package.json,src/,resources/,vendor/}
 //   runtime/core-1.5.2/... (complete copy of the per-version core cache).
+//   npm/ (npm 10.9.8 CLI plus its node_modules dependencies).
 //   The versioned subdirectory keeps the bundled node_modules out of the
 //   extraResources source root, which electron-builder excludes by default.
 //
@@ -12,7 +13,7 @@
 // core cache fails with a readable error. The script runs its own staging
 // self-test before exiting; non-zero exit means the layout is incomplete.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { cp, mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -20,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { resolveHome } from "../../../packages/pispider/src/home.js";
 
 const CORE_VERSION = "1.5.2";
+const BUNDLED_NPM_VERSION = "10.9.8";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const desktopDir = path.resolve(scriptDir, "..");
@@ -28,6 +30,7 @@ const repoRoot = path.resolve(desktopDir, "..", "..");
 const stagingRoot = path.join(desktopDir, "build", "packaged");
 const launcherStage = path.join(stagingRoot, "launcher");
 const runtimeStage = path.join(stagingRoot, "runtime");
+const npmStage = path.join(stagingRoot, "npm");
 
 const launcherScriptNames = ["run-pispider.mjs", "pispider-launcher.mjs"];
 const pispiderPackageParts = ["package.json", "src", "resources", "vendor"];
@@ -51,10 +54,33 @@ async function copyEntry(source, target) {
 	}
 }
 
+function resolveNpmPackageRoot() {
+	const candidates = [];
+	const npmExecPath = String(process.env.npm_execpath ?? "").trim();
+	if (npmExecPath) {
+		candidates.push(path.dirname(path.dirname(path.resolve(npmExecPath))));
+	}
+	const nodeDir = path.dirname(process.execPath);
+	candidates.push(path.join(nodeDir, "node_modules", "npm"));
+	candidates.push(path.join(nodeDir, "..", "lib", "node_modules", "npm"));
+	for (const candidate of candidates) {
+		const manifestPath = path.join(candidate, "package.json");
+		if (existsSync(manifestPath) && existsSync(path.join(candidate, "bin", "npm-cli.js"))) {
+			const version = JSON.parse(readFileSync(manifestPath, "utf8")).version;
+			if (version !== BUNDLED_NPM_VERSION) {
+				fail(`bundled npm must be ${BUNDLED_NPM_VERSION}, found ${version} at ${candidate}`);
+			}
+			return candidate;
+		}
+	}
+	fail(`npm CLI package not found; build with npm ${BUNDLED_NPM_VERSION} so npm_execpath is available. Tried: ${candidates.join(", ")}`);
+}
+
 async function main() {
 	const sourceScriptsDir = path.join(repoRoot, "scripts");
 	const sourcePispiderPkg = path.join(repoRoot, "packages", "pispider");
 	const coreCacheSource = path.join(resolveHome(), "runtime", `core-${CORE_VERSION}`);
+	const npmSource = resolveNpmPackageRoot();
 	const coreCliSource = path.join(
 		coreCacheSource,
 		"node_modules",
@@ -103,6 +129,9 @@ async function main() {
 	console.error("Staging core runtime cache:");
 	await copyEntry(coreCacheSource, path.join(runtimeStage, `core-${CORE_VERSION}`));
 
+	console.error(`Staging bundled npm CLI (${npmSource}):`);
+	await copyEntry(npmSource, npmStage);
+
 	await selfTest();
 }
 
@@ -126,6 +155,9 @@ async function selfTest() {
 			path.join(stagedCoreRoot, "node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js"),
 			"staged core CLI bundle",
 		],
+		[path.join(npmStage, "bin", "npm-cli.js"), "staged npm CLI"],
+		[path.join(npmStage, "package.json"), "staged npm package manifest"],
+		[path.join(npmStage, "LICENSE"), "staged npm license"],
 	];
 
 	for (const [target, label] of checks) {
@@ -149,7 +181,7 @@ async function selfTest() {
 		fail(`staged pispider package must exclude test/: ${stagedTestDir}`);
 	}
 
-	console.error("Self-test passed: launcher closure and runtime cache are complete.");
+	console.error("Self-test passed: launcher closure, runtime cache and npm CLI are complete.");
 	console.error(`  staging root: ${stagingRoot}`);
 }
 

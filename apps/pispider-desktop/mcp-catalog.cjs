@@ -345,39 +345,69 @@ async function inspectCatalogEntry(entry, paths) {
   }
 }
 
-async function findNpmCli(nodeExecutable) {
-  const npmExecPath = process.env.npm_execpath?.trim();
-  if (npmExecPath && npmExecPath.endsWith(".js") && fs.existsSync(npmExecPath)) return npmExecPath;
-
-  let nodePath = process.env.PISPIDER_NODE?.trim() || process.env.npm_node_execpath?.trim() || nodeExecutable;
-  if (nodePath && !path.isAbsolute(nodePath)) {
-    try {
-      const probe = await execFileAsync(nodePath, ["-p", "process.execPath"], {
-        timeout: 10_000,
-        windowsHide: true,
-      });
-      nodePath = probe.stdout.trim();
-    } catch {
-      nodePath = "";
-    }
+function electronNodeEnv(executable) {
+  const env = {};
+  if (process.versions.electron && executable && path.resolve(executable) === path.resolve(process.execPath)) {
+    env.ELECTRON_RUN_AS_NODE = "1";
   }
-  if (!nodePath || !path.isAbsolute(nodePath)) return null;
-
-  const nodeDir = path.dirname(nodePath);
-  const candidates = [
-    path.join(nodeDir, "node_modules", "npm", "bin", "npm-cli.js"),
-    path.join(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+  return env;
 }
 
-async function npmInvocation(args, nodeExecutable) {
-  const npmCli = await findNpmCli(nodeExecutable);
-  if (npmCli) return { command: nodeExecutable, args: [npmCli, ...args] };
-  if (process.platform === "win32") {
-    return { command: "npm", args, shell: true };
+function findSystemNpm() {
+  const pathValue = process.env.PATH || process.env.Path || "";
+  const extensions = process.platform === "win32" ? [".cmd", ".exe", ".bat"] : [""];
+  for (const entry of pathValue.split(path.delimiter)) {
+    const dir = entry.trim().replace(/^"(.*)"$/, "$1");
+    if (!dir) continue;
+    for (const extension of extensions) {
+      const shim = path.join(dir, `npm${extension}`);
+      if (!fs.existsSync(shim)) continue;
+      if (process.platform !== "win32") return { shim };
+      const root = path.dirname(shim);
+      const npmCli = path.join(root, "node_modules", "npm", "bin", "npm-cli.js");
+      if (!fs.existsSync(npmCli)) return { shim };
+      const bundledNode = path.join(root, "node.exe");
+      return { npmCli, nodeExecutable: fs.existsSync(bundledNode) ? bundledNode : "" };
+    }
   }
-  return { command: "npm", args };
+  return null;
+}
+
+function npmInvocation(args, nodeExecutable, { bundledNpmCli = "" } = {}) {
+  const npmCli = detectNpmCli({
+    env: process.env,
+    execPath: nodeExecutable,
+    exists: fs.existsSync,
+    bundledNpmCli,
+  });
+  if (npmCli) {
+    return { command: nodeExecutable, args: [npmCli, ...args], env: electronNodeEnv(nodeExecutable) };
+  }
+  const system = findSystemNpm();
+  if (!system) return null;
+  if (system.npmCli) {
+    const executable = system.nodeExecutable || nodeExecutable;
+    return { command: executable, args: [system.npmCli, ...args], env: electronNodeEnv(executable) };
+  }
+  if (process.platform === "win32") {
+    return { command: system.shim, args, shell: true, env: {} };
+  }
+  return { command: system.shim, args, env: {} };
+}
+
+function npmUnavailableResult() {
+  return {
+    success: false,
+    installed: false,
+    version: null,
+    packageRoot: "",
+    binPath: "",
+    error: mcpNpmUnavailableMessage(),
+  };
+}
+
+function isNpmMissingError(error) {
+  return error?.code === "ENOENT";
 }
 
 function npmErrorText(error) {
@@ -387,24 +417,11 @@ function npmErrorText(error) {
   return detail ? `${error.message}\n${detail.slice(-1200)}` : error.message;
 }
 
-async function installCatalogEntry(entry, paths, { nodeExecutable = "node", packaged = false } = {}) {
+async function installCatalogEntry(entry, paths, { nodeExecutable = "node", bundledNpmCli = "" } = {}) {
   if (entry.transport === "http") throw new Error(`HTTP 预置 ${entry.id} 不需要安装 npm 包`);
-  if (packaged) {
-    const npmCli = detectNpmCli({ env: process.env, execPath: nodeExecutable, exists: fs.existsSync });
-    if (!npmCli) {
-      return {
-        success: false,
-        installed: false,
-        version: null,
-        packageRoot: "",
-        binPath: "",
-        error: mcpNpmUnavailableMessage(),
-      };
-    }
-  }
   const installDir = catalogInstallDir(paths, entry);
   await fsp.mkdir(installDir, { recursive: true });
-  const invocation = await npmInvocation(
+  const invocation = npmInvocation(
     [
       "install",
       "--prefix",
@@ -416,12 +433,17 @@ async function installCatalogEntry(entry, paths, { nodeExecutable = "node", pack
       `${entry.packageName}@${entry.version}`,
     ],
     nodeExecutable,
+    { bundledNpmCli },
   );
+  if (!invocation) {
+    return npmUnavailableResult();
+  }
   try {
     await execFileAsync(invocation.command, invocation.args, {
       cwd: installDir,
       env: {
         ...process.env,
+        ...invocation.env,
         npm_config_update_notifier: "false",
       },
       timeout: 240_000,
@@ -430,6 +452,9 @@ async function installCatalogEntry(entry, paths, { nodeExecutable = "node", pack
       shell: invocation.shell === true,
     });
   } catch (error) {
+    if (isNpmMissingError(error)) {
+      return npmUnavailableResult();
+    }
     throw new Error(`安装 ${entry.packageName}@${entry.version} 失败：${npmErrorText(error)}`);
   }
   const inspect = await inspectCatalogEntry(entry, paths);

@@ -43,6 +43,7 @@ test("resolvePackagedLayout maps resources to launcher closure and runtime cache
     layout.coreCacheRoot,
     path.join(layout.resourcesRoot, "runtime", "core-1.5.2"),
   );
+  assert.equal(layout.npmCliPath, path.join(layout.resourcesRoot, "npm", "bin", "npm-cli.js"));
 });
 
 test("buildNodeSpawn runs the Electron executable as Node with the bundled cache", () => {
@@ -76,7 +77,20 @@ test("buildNodeSpawn does not mutate the caller env", () => {
   assert.deepEqual(inputEnv, { KEEP: "yes" });
 });
 
-test("detectNpmCli prefers npm_execpath when it exists", () => {
+test("detectNpmCli prefers the explicitly bundled npm", () => {
+  const execPath = path.join("C:", "electron", "PiSpider.exe");
+  const bundled = path.join("C:", "resources", "npm", "bin", "npm-cli.js");
+  const envNpm = path.join("C:", "tools", "npm", "bin", "npm-cli.js");
+  const detected = detectNpmCli({
+    env: { npm_execpath: envNpm },
+    execPath,
+    exists: existsFor(bundled, envNpm),
+    bundledNpmCli: bundled,
+  });
+  assert.equal(detected, path.resolve(bundled));
+});
+
+test("detectNpmCli prefers npm_execpath when no bundled npm is passed", () => {
   const execPath = path.join("C:", "electron", "PiSpider.exe");
   const npmCli = path.join("C:", "tools", "npm", "bin", "npm-cli.js");
   const detected = detectNpmCli({

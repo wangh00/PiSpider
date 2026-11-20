@@ -748,7 +748,7 @@ async function installCatalogMcp(id, scope = "user", inputs = {}) {
     if (!inspect.installed || inspect.version !== entry.version) {
       inspect = await installCatalogEntry(entry, paths, {
         nodeExecutable,
-        packaged: Boolean(packagedLayout),
+        bundledNpmCli: packagedLayout?.npmCliPath ?? "",
       });
       if (inspect.success === false) return inspect;
     }

@@ -21,6 +21,7 @@ const {
   buildManagedMcpServer,
   isManagedCatalogServer,
   preserveManagedCatalogMetadata,
+  installCatalogEntry,
 } = require("../mcp-catalog.cjs");
 
 test("catalog manifest exposes the Chrome DevTools and Context7 presets", () => {
@@ -259,6 +260,28 @@ test("catalog rejects packaged skill declarations", async () => {
     assert.match(catalog.errors.join("\n"), /skills 已移除/);
     assert.match(catalog.errors.join("\n"), /catalog\.json\.skills 已移除/);
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("installCatalogEntry reports missing npm without invoking a shell", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "pispider-catalog-npm-"));
+  const oldPath = process.env.PATH;
+  const oldNpmExecPath = process.env.npm_execpath;
+  try {
+    process.env.PATH = "";
+    delete process.env.npm_execpath;
+    const result = await installCatalogEntry(findCatalogEntry("chrome-devtools"), { agentDir: root }, {
+      nodeExecutable: path.join(root, "missing-node.exe"),
+      bundledNpmCli: "",
+    });
+    assert.equal(result.success, false);
+    assert.match(result.error, /npm/);
+    assert.match(result.error, /mcp\.json/);
+  } finally {
+    process.env.PATH = oldPath;
+    if (oldNpmExecPath === undefined) delete process.env.npm_execpath;
+    else process.env.npm_execpath = oldNpmExecPath;
     await rm(root, { recursive: true, force: true });
   }
 });

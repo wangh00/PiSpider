@@ -30,6 +30,7 @@ function resolvePackagedLayout(resourcesPath) {
     launcherRoot,
     runnerPath: path.join(launcherRoot, "scripts", "run-pispider.mjs"),
     coreCacheRoot: path.join(resourcesRoot, RUNTIME_DIR, `core-${CORE_VERSION}`),
+    npmCliPath: path.join(resourcesRoot, "npm", "bin", "npm-cli.js"),
   });
 }
 
@@ -52,13 +53,13 @@ function buildNodeSpawn({ execPath, scriptPath, args = [], env = {}, coreCacheRo
 /**
  * Detect an npm CLI script the bundled Electron/Node runtime can execute.
  *
- * Candidate order mirrors scripts/pispider-launcher.mjs resolveNpmCli: the
- * npm_execpath environment variable first, then the node directory's bundled
- * npm, then the POSIX-style lib/node_modules layout. Returns the resolved
- * npm-cli.js path, or null when no candidate exists.
+ * Candidate order: explicitly bundled npm (resources/npm), npm_execpath, then
+ * the node directory's bundled npm, then the POSIX lib/node_modules layout.
+ * Returns the resolved npm-cli.js path, or null when no candidate exists.
  */
-function detectNpmCli({ env = process.env, execPath = process.execPath, exists = fs.existsSync } = {}) {
+function detectNpmCli({ env = process.env, execPath = process.execPath, exists = fs.existsSync, bundledNpmCli = "" } = {}) {
   const candidates = [];
+  if (bundledNpmCli) candidates.push(path.resolve(bundledNpmCli));
   const npmExecPath = String(env.npm_execpath ?? "").trim();
   if (npmExecPath) {
     candidates.push(
@@ -77,11 +78,11 @@ function detectNpmCli({ env = process.env, execPath = process.execPath, exists =
 }
 
 /**
- * Read-only Chinese fallback shown when a packaged build has no bundled npm
- * for one-click MCP catalog installation.
+ * Read-only Chinese fallback shown when neither the packaged npm CLI nor a
+ * system PATH npm is available for one-click MCP catalog installation.
  */
 function mcpNpmUnavailableMessage() {
-  return "打包版未附带 npm，预置 MCP 一键安装不可用；手动 mcp.json 配置不受影响";
+  return "未找到可用的 npm（随包 npm 缺失且系统 PATH 中没有 npm）；预置 MCP 一键安装不可用，手动 mcp.json 配置不受影响";
 }
 
 module.exports = {
