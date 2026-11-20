@@ -103,10 +103,11 @@ resources/
 ## 当前桌面能力
 
 - `新建任务`：创建新会话。
-- `最近`：扫描 `~/.pispider/agent/sessions`，置顶会话排在最前；列表按置顶 / 今天 / 昨天 / 本周 / 更早分组，删除为行内二次确认，当前会话不显示删除入口；搜索由主进程读取会话 JSONL，支持标题、ID、目录、用户 / 助手消息正文、`re:` 正则、引号短语和多 token，结果带 snippet、匹配字段与“相关度 / 最近”排序，命中文本高亮；单文件上限 8 MB，最多返回 80 条。
+- `最近`：扫描 `~/.pispider/agent/sessions`，置顶会话排在最前；列表按置顶 / 今天 / 昨天 / 本周 / 更早分组，删除为行内二次确认，当前会话不显示删除入口；顶部“排序任务”按钮切到手动排序模式，按置顶 / 最近分组显示 `≡` 手柄，可拖动或 `Alt+↑/↓` 调整，顺序自动写入 `desktop.json.sessionOrder`，普通视图按该序展示，“恢复默认”清空排序；搜索由主进程读取会话 JSONL，支持标题、ID、目录、用户 / 助手消息正文、`re:` 正则、引号短语和多 token，结果带 snippet、匹配字段与“相关度 / 最近”排序，命中文本高亮；单文件上限 8 MB，最多返回 80 条。
 - 窗口状态：主窗口位置、尺寸和最大化写入 `desktop.json` 的 `windowState`，启动恢复；`resize` / `move` / `maximize` / `unmaximize` 250ms 防抖写回，关闭时同步补写；坐标不在任何显示器可见区域时回退为居中。单实例锁保证第二次启动只聚焦已有窗口。
 - 启动恢复上次会话：切换会话或一轮运行结束后把当前会话路径写入 `desktop.json` 的 `lastSessionPath`；进程启动后自动打开。没有记录或路径失效时取最近更新的已保存会话，仍没有才回退到空会话。新建会话在文件尚未落盘时不覆盖旧记录。
 - 会话置顶：每项右侧星标写入 `desktop.json` 的 `pinnedSessions`，重启后保留。
+- 会话排序：`desktop.json` 的 `sessionOrder` 保存手动展示序；`listSessions` 先按置顶分组，再按该序、最后按更新时间排序，排序模式内拖动或 `Alt+↑/↓` 即自动保存。
 - 会话切换：调用 Pi RPC `switch_session`。
 - 主界面会话用量：输入框模型名左侧显示上下文圆环，按已用 token 比例填充，并在环右侧显示百分比；点击圆环打开会话用量弹层，显示上下文百分比与进度条、已用 / 窗口 tokens、输入、输出、Token 总量和成本，并提供手动刷新；数据来自 `get_session_stats`，每轮结束和压缩结束后更新，流式期间不逐 token 刷新。上下文达到 75% / 90% 时圆环转为危险色。
 - 消息流：监听 `message_start` / `message_update` / `message_end`，支持文本、thinking 和工具调用。
@@ -133,7 +134,7 @@ resources/
 - `状态` 子窗口汇总模型、思考强度、当前项目权限、项目信任、会话、规则、技能、MCP、提示词字符数、领域模式和最近一次 `ps_task` 的阶段 / 目标 / 下一步；项目级资源未信任时会标注“未加载”。
 - `ps_task` 的 `details.pispiderTask` 保留在 `会话` 子窗口的任务状态区域；不再在右侧面板堆叠任务/活动/产物 tab。
 - `会话` 子窗口读取 `get_session_stats`，显示输入/输出、Token 总量、成本和上下文用量；顶部提供“压缩上下文”“重命名”“回退分支”按钮，分别调用 RPC `compact`、`set_session_name`、`get_fork_messages` + `fork`。窗口内提供“回退上一轮 / 再回退一轮”，走 `get_fork_messages` + `fork`，执行前确认，原分支保留在会话树；还包含自动压缩、全局自动重试、中止重试、复制会话、会话树（节点支持从此分支 / 复制 / 标记）、导出 HTML、导出 JSONL（复制当前会话文件）、从其他目录恢复会话和重置任务（`/ps task reset --yes`，保留对话）。跨目录恢复会把外部 `.jsonl` 校验后复制到当前会话目录，再调用 `switch_session` 打开；同名文件自动加时间戳，不覆盖源文件。模型、思考强度、当前项目权限统一在输入框底部切换，不再在会话窗口重复一套控件。
-- 最近会话列表的每一项支持置顶和删除；当前会话不能删除，需要先切换。删除只移除对应 `.jsonl` 文件。
+- 最近会话列表的每一项支持置顶、删除和手动排序；当前会话不能删除，需要先切换。删除只移除对应 `.jsonl` 文件。
 - 主对话中每条用户消息和助手回复都带“复制”按钮，按钮固定在消息右下角，默认隐藏，鼠标进入该条消息或键盘聚焦时出现；复制该条消息的纯文本到系统剪贴板。不再提供顶部“复制最后回复”按钮。Markdown 代码块带语言标签和“复制代码”按钮；正文支持标题、无序 / 有序列表、引用、表格、删除线、链接、行内代码和 fenced code block，常见语言有轻量语法高亮，表格可横向滚动；Mermaid 代码块由裁剪后的本地 `mermaid@12.3.0` 运行时懒加载渲染，只保留 flowchart / sequence（含 flowchart-elk），源码默认折叠、可切换显示，渲染失败时显示错误并展开源码；其他 Mermaid 图类型会明确提示当前离线运行时未包含。
 - 运行时能力探测：runtime ready 后缓存 `get_commands` 的命令名，`window.pispider.getCapabilities()` 可读取；runtime 退出时清空。当前实测包含 `ps`、`llama`、`mcp`。
 - 扩展 UI：`extension_ui_request` 的 `confirm` / `input` / `editor` / `select` 会显示在主窗口对话框；`notify` / `setStatus` / `setWidget` / `set_editor_text` / `setTitle` 也做桥接；弹层关闭后焦点回到打开前的元素。
@@ -169,7 +170,7 @@ node scripts/pispider-desktop-debug.mjs inject-event '{"type":"debug_noop"}'
 完整的 CLI / Pi 能力对照和优先级见 [docs/desktop-parity.md](../../docs/desktop-parity.md)。当前主要缺口：
 
 - 扩展 UI 的 TUI 专属能力（`custom`、终端输入等）还没有接入；MCP 已有用户级 / 项目级配置管理、逐服务器检查、工具名展示、stdio / HTTP 检查、服务器级 exposure、逐工具启停列表、OAuth 登录/登出、单服务器热重连和 `chrome-devtools` 内置预置目录；MCP live state 已通过 RPC `mcp_status` 读取实际连接和工具，并通过 `mcp_status_changed` 会话事件推送到 MCP 子窗口，预置准备成功后空闲时自动重载，重载 / 重连时自动经历 starting / connecting / connected / failed，不再依赖手动“检查连接”；逐工具运行时状态订阅还未暴露；内置目录目前保留 `chrome-devtools` 和远程 HTTP `context7`，并已支持 stdio / HTTP 两种预置 transport；`filesystem`、`memory`、`sequential-thinking` 因与 Pi 原生能力重叠或必要性较低，已从默认目录移除。参数化 inputs / 占位符和参数弹层仍保留，后续按同一 `catalog.json` 结构增加真正需要外部连接的预置。Windows 安装包已接入 electron-builder 26.18.0；打包文件白名单见 `package.json.files` 与 `electron-builder.yml`。项目信任入口已接。
-- 会话分支已接 label、会话 tree 的“从此分支 / 复制”、rename、删除非当前会话、置顶排序、从其他目录恢复、回退分支、回退上一轮 / 再回退一轮、复制会话、tree 查看、导出 HTML / JSONL、模型 / 思考强度 / 自动压缩 / 自动重试 / 中止重试切换；tree 节点删除/树内排序未接。
+- 会话分支已接 label、会话 tree 的“从此分支 / 复制”、rename、删除非当前会话、置顶排序、从其他目录恢复、回退分支、回退上一轮 / 再回退一轮、复制会话、tree 查看、导出 HTML / JSONL、模型 / 思考强度 / 自动压缩 / 自动重试 / 中止重试切换；tree 节点删除未接，侧栏会话列表手动排序已接。
 - 模型：默认配置、API Key、自定义端点、已保存模型、本地检查、模型列表探测和真实推理测试已接；输入框模型菜单搜索、模型 / 思考强度循环、作用域编辑已接；provider OAuth 已接 Kimi For Coding、OpenRouter、OpenAI 三家，其他 provider 仍可用 CLI `/login`。
 - 文件选择器会把非图片路径追加到 prompt；选择 png/jpg/gif/webp/bmp 时读取为图片附件，输入框 `@` 会检索当前项目文件并插入相对路径；`/share` 已在会话子窗口接入 GitHub 私有 Gist 路径：导出当前会话 HTML 后调用 `gh gist create --public=false`，再生成 `https://pi.dev/session/<gistId>` 预览链接；需要本机安装 `gh` 并已 `gh auth login`，可用 `PISPIDER_GH_BIN` 指定可执行文件路径，`PI_SHARE_VIEWER_URL` 可覆盖预览基址；Pi 的 Radius artifact 路径和分享目的地设置尚未接。
 - Electron / Mermaid 依赖已写入 `apps/pispider-desktop/package.json`，并反映到根 `package-lock.json` 的 workspace 条目；`mermaid` 是开发依赖，打包时只带 `vendor/mermaid` 裁剪运行时。当前 Electron 二进制通过根 `node_modules/electron/dist` 使用。Windows NSIS 安装包与应用图标已接；自动更新、代码签名、macOS / Linux 目标和 portable 未做；Mermaid 裁剪已完成。

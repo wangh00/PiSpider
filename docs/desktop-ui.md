@@ -183,6 +183,7 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 - 逐模型默认思考档位（2026-11-20）：模型弹层在“思考强度”之后新增“该模型启动默认”选择行，选项为“跟随全局”加当前可用档位；保存时调用 `config:set-model-thinking-default`，主进程校验 `off/minimal/low/medium/high/xhigh/max` 后写入 `settings.json.modelThinkingLevels`（键为精确 `provider/modelId`），删除时把空对象一并移除。保存后主进程重启 Agent 并保留当前会话；渲染层再调用 `set_thinking_level` 把当前会话同步到该档位，清除则不改当前会话。模型行 meta 会附加“默认高”等标记，`getModelScope` 响应同时返回 `modelThinkingLevels`，启动时随 `refreshAgentOptions()` 一次拉取。若旧配置里有 `minimal` 或当前模型不支持的档位，下拉会保留一个同值选项，避免静默显示成“跟随全局”。CDP 实测：`faux/model-a` 预置 `medium` 时下拉值为 `medium`、选项 7 项、模型行显示“默认中”；写 `high` 后 `getModelScope` 返回 `{"faux/model-a":"high"}`，`settings.json` 持久化为相同结构；写 `null` 后 `modelThinkingLevels` 整体删除，非法档位返回“思考档位无效”。
 - 图片消息渲染与高度指纹（2026-11-20）：`renderAssistantContent()` 按 block 顺序渲染 `image` block，连续图片收进 `.message-images` 条；用户消息改用同一 `renderMessageImageStrip()`，工具结果在 `.tool-body` 末尾追加“图片”分区，只有图片时摘要显示“N 张图片”。图片是 data URL `<img>`，不做 `innerHTML` 拼接；`load` / `error` 后触发一次 `refreshActionGroupLayout()` 重测高度，避免解码前把虚拟占位估算留成 0 高。高度缓存升到版本 5，值从数字改为 `{height, signature}`：`messageHeightSignature()` 覆盖角色、正文 / 思考 head+tail、图片 mime 与 base64 长度、工具名、命令、退出码和错误文本，`messageStructureKey()` 对非 live 消息也带同一指纹，因此 id 不变但正文被编辑时会重绘并重新测量，live 流式消息仍不进入结构指纹。CDP 实测：助手消息 1 张图且顺序为文本 / 图片 / 文本，工具结果 2 张图并显示“2 张图片”；同一 id 文本从 `hello` 改为 `hello changed content` 后 `messageMeasuredHeight` 从缓存 100 回落到估算 90，`messageStructureKey` 随内容变化。
 - 恢复会话导航（2026-11-20）：新增 `#sessionPicker` 模态（复用命令面板卡片样式），`/resume` 与 `Ctrl+Shift+K` 打开；输入框按标题、路径、cwd、最近消息预览做多 token 过滤，列表按置顶 / 最近分组，当前会话标“当前”；`↑↓` 循环选择、`Enter` 切换、`Esc` / 遮罩点击关闭并归还焦点。`openSessionPicker()` 打开后会刷新一次 `listSessions()`，切换仍走既有 `switchSession()`（含滚动位置保存与高度缓存重置）。CDP 实测：`/resume` 打开后焦点在 `sessionPickerInput`，`Ctrl+Shift+K` 同样打开，`Esc` 关闭；注入两条会话后按 `beta` / `alpha alpha` 过滤结果正确，分组为“置顶会话 / 最近会话”，方向键从 Beta 移到 Alpha。
+- 会话手动排序（2026-11-20）：侧栏标题新增 `#sortSessionsButton`（双箭头图标），点击进入“排序任务”模式，顶部显示“拖动 ≡ 调整顺序，自动保存”以及“恢复默认 / 完成”。排序视图按“置顶会话 / 最近会话”两组渲染，每行左侧有可拖动的 `≡` 手柄和组内序号，隐藏置顶 / 删除按钮；`dragstart` 记录路径，`dragover` 按目标行上下半区决定插入前 / 后并加 `drop-before` / `drop-after` 高亮，`drop` 调 `reorderSessionOrder()`，`dragend` 清空拖拽态。手柄支持 `Alt+↑/↓` 键盘步进。每次调整先本地更新 `state.sessionOrder` 并重绘，再调 `sessions:set-order` 写入 `desktop.json.sessionOrder`（空数组删除字段），失败回滚并 toast。主进程 `listSessions()` 改为“置顶优先 → 手动序索引 → 更新时间降序”，未在手动序中的会话排在后面；排序上限 500 条，且只接受 sessionDir 内路径。搜索框有内容时禁止进入排序并 toast，进入搜索也会退出排序。CDP 实测：三会话默认分组“今天 2 / 置顶 1”，进入排序后分组“置顶会话 1 / 最近会话 2”、3 个手柄、序号 1/1/2，初始序 `b,a,c`；`reorderSessionOrder(a,c,true)` 后本地与磁盘均为 `b,c,a`，列表行序同步；`moveSessionByStep(a,-1)` 后变 `b,a,c` 并落盘；`resetSessionOrder()` 后本地与磁盘均为 `[]`；有搜索词时进入排序被拦截。真实临时会话文件下 `setSessionOrder([c,a,b])` 后 `listSessions()` 依次返回 c、a、b，清空后回到默认顺序。
 
 ## 6. 路线图
 
@@ -194,7 +195,7 @@ P0（下一轮）：
 P1：
 
 1. 左栏信息架构继续收敛：资源入口已压成 2×2，仍有项目行 / 搜索 / 会话分组需要进一步降噪。
-2. 会话列表增加按项目筛选，当前只按时间和置顶分组。
+2. 会话列表增加按项目筛选，当前按置顶 / 手动序 / 时间分组。
 3. 状态反馈聚合：主界面已有会话用量入口，但运行状态、队列、MCP pending 和错误横幅仍分散在标题栏 / 输入区 / 二次窗口，下一步收敛到统一运行状态入口。
 4. 完整虚拟滚动、真实高度和按会话持久化已落地并压测；240 条混合探针首次打开总高度差已从 `-900.8px` 校准到 `-39.6px`（约 0.02%）。窗口宽度 / 缩放 / 面板开合已按布局失效并保留锚点，10px 级滚动条宽度差按新布局保守清空。图片消息与内容变更后的缓存失效已由版本 5 内容指纹补齐。本轮未在 714 / 685 等新宽度下做全量真实总高度对比，离屏仍按新宽度估算，后续可补这项基准。
 

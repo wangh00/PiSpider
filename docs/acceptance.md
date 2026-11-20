@@ -476,6 +476,55 @@ npm run pispider:desktop
 - 打包产物仍未重建；开发版加载新代码，便携版 / 安装包需要 `npm run dist:win`。
 - `minimal` 仍不在桌面下拉中显示（沿用现有过滤），但旧配置里的 `minimal` 值会保留显示，不会被静默改成“跟随全局”。
 
+## 11. 会话手动排序（2026-11-20）
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/main.cjs` | 新增 `normalizeSessionOrder()` / `getSessionOrder()` / `setSessionOrder()`；`listSessions()` 排序改为“置顶优先 → 手动序索引 → 更新时间降序”；新增 `sessions:order` / `sessions:set-order` IPC，写入 `desktop.json.sessionOrder` 并广播 `sessions:changed` |
+| `apps/pispider-desktop/preload.cjs` | 暴露 `getSessionOrder()` / `setSessionOrder(items)` |
+| `apps/pispider-desktop/renderer/app.js` | 新增 `state.sessionOrder` / `state.sessionSortMode` / `state.sessionDragPath`；`refreshSessions()` 并行拉会话与排序；侧栏“排序任务”按钮；排序条与分组行渲染、`≡` 手柄、序号、HTML5 拖拽、`Alt+↑/↓` 步进、恢复默认、搜索守卫 |
+| `apps/pispider-desktop/renderer/index.html` | 侧栏标题新增 `#sortSessionsButton` |
+| `apps/pispider-desktop/renderer/styles.css` | `.session-sort-bar` / `.session-sort-row` / 拖拽柄 / 序号 / drop 高亮 / `.mini-button.active` |
+| `apps/pispider-desktop/README.md` | 最近会话、置顶、分支三段补排序说明 |
+| `docs/desktop-parity.md` | `/tree`、`/fork` 行与缺口列表改为“树节点删除未接；列表排序已接”；§7 P1-2 标记排序完成 |
+| `docs/desktop-status.md` | 已落地能力新增“会话手动排序”；P1-6 标记排序完成 |
+| `docs/desktop-ui.md` | §5 新增实现与 CDP 记录；§6 P1 分组描述更新 |
+
+### 行为
+
+- 排序只改桌面展示序，不写上游会话 JSONL；`sessionOrder` 是绝对路径数组，只保留 `sessionDir` 内路径、去重、上限 500，空数组时删除字段。
+- 普通视图由主进程直接按“置顶分组 → 手动序索引 → 更新时间降序”返回；未出现在 `sessionOrder` 的会话排在已排序会话之后。
+- 排序模式按“置顶会话 / 最近会话”两组展示，拖动 `≡` 到目标行上半区插入其前、下半区插入其后；`Alt+↑/↓` 与拖动走同一 `reorderSessionOrder()`。
+- 每次调整先本地更新并重绘，再持久化；IPC 失败时回滚本地序并 toast。搜索输入非空时禁止进入排序模式；进入搜索自动退出排序。
+- “恢复默认”清空 `sessionOrder` 并保留排序模式；“完成”退出模式。
+
+### 验证（隔离开发实例，CDP 9348）
+
+- 三会话默认分组“今天 2 / 置顶 1”、3 行；进入排序后分组“置顶会话 1 / 最近会话 2”、3 个手柄、序号 `1/1/2`，初始序 `b,a,c`（置顶 b 优先）。
+- `reorderSessionOrder(a,c,true)`：本地与 `getSessionOrder()` 均为 `b,c,a`，重渲染行序 `b,c,a`。
+- `moveSessionByStep(a,-1)`：序变 `b,a,c` 并持久化（`c` 在最近组首位，单独上移被组边界拦截）。
+- `resetSessionOrder()`：本地与磁盘均为 `[]`，排序模式保持开启。
+- 搜索框有词时进入排序被拦截（`searchGuard = true`）。
+- 后端真实会话文件（临时 home 写入 `a/b/c.jsonl`）：`setSessionOrder([c,a,b])` 后 `listSessions()` 返回 c、a、b，清空后回到 a、b、c。
+- 原生 HTML5 拖拽：`c` 拖到 `a` 下半区，序变 `a,c,b`；本地、磁盘、重渲染行序一致。
+- 验证后停止隔离 Electron，删除临时 `ui-home` / `ui-userdata`，未触碰真实 `~/.pispider`。
+
+### 自动化检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0（2575 文件，无修复） |
+| 2 | `npm run pispider:check` | exit 0 |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `cd apps/pispider-desktop; npm test` | 43/43 pass |
+
+### 遗留
+
+- 会话树分支节点删除仍阻塞上游 entry 删除 / 重排 API，本轮只做侧栏列表展示排序。
+- `listSessions()` 仍截断 80 条，手动序超过 80 条的会话不会出现在侧栏。
+
 
 
 

@@ -90,7 +90,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 | --- | --- | --- | --- |
 | `/settings` | 打开设置二次窗口 | 已接 | |
 | `/model` | 无参打开模型胶囊菜单；有参 `provider/model` 走 `set_model` | 已接 | 格式非法 toast 报错 |
-| `/tree` | 打开会话窗口查看会话树 | 部分 | 树节点删除 / 排序未接，见 fork / clone / tree 行 |
+| `/tree` | 打开会话窗口查看会话树 | 部分 | 树节点删除未接；会话列表手动排序已接 |
 | `/thinking` | 无参打开思考强度菜单；有参 `set_thinking_level` | 部分 | 菜单隐藏 `minimal`；当前会话档位可切换，逐模型启动默认档位在模型弹层设置 |
 | `/scoped-models` | 打开模型作用域编辑器 | 已接 | |
 | `/export` | 无参导出 HTML；`.jsonl` / `.html` 路径导出 | 已接 | 可选绝对路径，其他扩展名报错 |
@@ -102,7 +102,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 | `/session` | 打开状态 / 会话信息窗口 | 已接 | |
 | `/changelog` | 主窗口只读对话框渲染运行时 CHANGELOG | 已接 | 找不到文件时 toast 提示 |
 | `/hotkeys` | 打开快捷键总览对话框 | 已接 | |
-| `/fork` | 打开会话窗口提示分叉入口 | 部分 | 树节点删除 / 排序未接 |
+| `/fork` | 打开会话窗口提示分叉入口 | 部分 | 树节点删除未接；会话列表手动排序已接 |
 | `/clone` | 复制当前会话并刷新列表 | 已接 | |
 | `/trust` | 打开设置窗口提示项目信任位置 | 已接 | |
 | `/login` | 打开设置窗口认证区域 | 已接 | `provider` 仅用于提示文案；真实账号授权完成待回归 |
@@ -117,7 +117,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 
 - 队列逐条删除：需要上游新增 `get_queue` / `remove_queue_item` RPC（见排队两行）。
 - `/share` 的 Radius artifact 路径与分享目的地设置。
-- 会话树节点删除 / 排序。
+- 会话树节点删除（无 entry 删除 / 重排 API）；会话列表手动排序已接。
 
 ## 6. 运维与高级设置
 
@@ -158,7 +158,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 **P1：功能完整与打包维护**
 
 1. `/share` Radius artifact 与分享目的地设置（Gist 路径已有）：目的地配置字段上游 schema 已存在；Radius artifact 生成 / 发布路径阻塞上游。
-2. 会话树节点删除 / 排序：排序桌面可独立做（展示序持久化 `desktop.json`，复用置顶模式，不写上游会话文件）；分支节点删除阻塞上游 entry 变更 API / RPC；整文件删除是桌面自有文件操作。
+2. 会话树节点删除 / 排序：排序已完成（侧栏“排序任务”模式，拖动或 `Alt+↑/↓` 调整，展示序持久化 `desktop.json.sessionOrder`，复用置顶分组，不写上游会话文件）；分支节点删除仍阻塞上游 entry 变更 API / RPC；整文件删除是桌面自有文件操作。
 3. 逐模型思考档位 UI：已完成。模型弹层内为当前模型选择启动默认档位，写 `settings.json.modelThinkingLevels`（精确 `provider/modelId`），保存后重启 Agent 并把当前会话同步到该档位；可清除回“跟随全局”。
 4. 高级 settings（proxy / transport / shell / 细粒度 allowlist / compaction 参数）：桌面可独立做；上游 schema 字段已具备，缺 RPC 写入口，走配置文件 + 重启 runtime 既有模式，注意 schema 校验与重启生效时机。
 5. MCP 单工具运行态订阅：服务器级连接 live state 已接（RPC `mcp_status` 快照 + `mcp_status_changed` 推送原地更新）；单工具运行时状态订阅仍缺上游数据，`McpLiveServerStatus.tools` 仅为工具名数组，无单工具运行 / 可用状态字段。
