@@ -1,0 +1,160 @@
+{
+  "package": "mermaid",
+  "version": "12.3.0",
+  "entry": "mermaid.esm.min.mjs",
+  "diagrams": [
+    "flowchart",
+    "sequence"
+  ],
+  "files": [
+    {
+      "path": "chunks/mermaid.esm.min/bpmnIcons-YJSSVMIT.mjs",
+      "bytes": 5242
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-3DCBE5TA.mjs",
+      "bytes": 123511
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-3NO356PZ.mjs",
+      "bytes": 48985
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-5LJW3EUZ.mjs",
+      "bytes": 889
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-767MNKTJ.mjs",
+      "bytes": 15076
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-A3LLD7C6.mjs",
+      "bytes": 360
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-AEP47HME.mjs",
+      "bytes": 562
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-C7QCCU7L.mjs",
+      "bytes": 1991
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-CG7VIXT6.mjs",
+      "bytes": 263
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-CPAW7BRR.mjs",
+      "bytes": 470018
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-DJPHBUKM.mjs",
+      "bytes": 5502
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-EB7S5WDG.mjs",
+      "bytes": 18554
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-FRYFDGAD.mjs",
+      "bytes": 1950
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-H3Y7VZGV.mjs",
+      "bytes": 42423
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-IJTDMCXQ.mjs",
+      "bytes": 47255
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-JENJ2NYI.mjs",
+      "bytes": 28157
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-KNGDTZMA.mjs",
+      "bytes": 49527
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-NXZFCOWJ.mjs",
+      "bytes": 120482
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-NYALJP3A.mjs",
+      "bytes": 316
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-PNVTB6QF.mjs",
+      "bytes": 628
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-Q7AU6FSL.mjs",
+      "bytes": 10151
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-SVHOGJPR.mjs",
+      "bytes": 65293
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-UCIVM6JH.mjs",
+      "bytes": 6320
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-UGEUIIAL.mjs",
+      "bytes": 1960
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-V3YWWTDH.mjs",
+      "bytes": 948
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-VHEAKMU3.mjs",
+      "bytes": 2020
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-VLFMOWSA.mjs",
+      "bytes": 246790
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-Z2IEFKAF.mjs",
+      "bytes": 1420
+    },
+    {
+      "path": "chunks/mermaid.esm.min/chunk-ZJBQKVUR.mjs",
+      "bytes": 189
+    },
+    {
+      "path": "chunks/mermaid.esm.min/cose-bilkent-U4P6ZWTA.mjs",
+      "bytes": 84169
+    },
+    {
+      "path": "chunks/mermaid.esm.min/dagre-75NMZP4T.mjs",
+      "bytes": 39535
+    },
+    {
+      "path": "chunks/mermaid.esm.min/elk-VW7CPVO3.mjs",
+      "bytes": 1620399
+    },
+    {
+      "path": "chunks/mermaid.esm.min/flowDiagram-MIYXRJYK.mjs",
+      "bytes": 702
+    },
+    {
+      "path": "chunks/mermaid.esm.min/katex-HEAVHIDR.mjs",
+      "bytes": 273215
+    },
+    {
+      "path": "chunks/mermaid.esm.min/sequenceDiagram-7K4MKO6P.mjs",
+      "bytes": 118899
+    },
+    {
+      "path": "chunks/mermaid.esm.min/swimlanes-VL4ZZWC5.mjs",
+      "bytes": 120888
+    },
+    {
+      "path": "mermaid.esm.min.mjs",
+      "bytes": 30936
+    }
+  ],
+  "bytes": 3605525
+}

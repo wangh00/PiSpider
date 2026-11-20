@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';"
+    />
+    <title>PiSpider</title>
+    <link rel="stylesheet" href="./tokens.css" />
+    <link rel="stylesheet" href="./panel.css" />
+  </head>
+  <body>
+    <div class="window-shell">
+      <div class="window-chrome">
+        <span class="chrome-brand">
+          <span class="chrome-mark" aria-hidden="true">↯</span>
+          PiSpider
+        </span>
+        <div class="window-controls">
+          <button class="window-control" data-window-action="minimize" type="button" aria-label="最小化">−</button>
+          <button class="window-control close" data-window-action="close" type="button" aria-label="关闭">×</button>
+        </div>
+      </div>
+      <header class="panel-head">
+        <div class="panel-heading">
+          <h1 id="panelTitle">规则</h1>
+          <span class="panel-meta" id="panelMeta"></span>
+        </div>
+        <div class="panel-actions">
+          <button class="panel-action primary" id="createButton" type="button" hidden>新建规则</button>
+          <button class="panel-action" id="importSkillButton" type="button" hidden>导入技能</button>
+          <button class="panel-action" id="reloadAgentButton" type="button" hidden>重载 Agent</button>
+          <button class="panel-action" id="compactButton" type="button" hidden>压缩上下文</button>
+          <button class="panel-action" id="renameSessionButton" type="button" hidden>重命名</button>
+          <button class="panel-action" id="forkSessionButton" type="button" hidden>回退分支</button>
+          <button class="panel-action" id="checkMcpButton" type="button" hidden>检查连接</button>
+          <button class="panel-action" id="refreshButton" type="button">刷新</button>
+          <button class="panel-action" id="openDirButton" type="button">打开目录</button>
+        </div>
+      </header>
+      <main class="panel-body" id="panelBody">
+        <div class="panel-empty">加载中...</div>
+      </main>
+      <div class="panel-message" id="panelMessage" role="status" aria-live="polite"></div>
+    </div>
+    <dialog class="panel-dialog" id="ruleDialog">
+      <form class="dialog-card" id="ruleForm">
+        <header class="dialog-head">
+          <h2 id="ruleDialogTitle">新建规则</h2>
+          <button class="window-control close" id="ruleDialogClose" type="button" aria-label="关闭">×</button>
+        </header>
+        <div class="dialog-body" id="ruleDialogBody"></div>
+        <div class="dialog-message" id="ruleDialogMessage" role="status" aria-live="polite"></div>
+        <footer class="dialog-actions">
+          <button class="panel-action subtle" id="ruleDialogCancel" type="button">取消</button>
+          <button class="panel-action primary" id="ruleDialogSubmit" type="submit">保存</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog class="panel-dialog" id="shareDialog">
+      <form class="dialog-card" id="shareForm">
+        <header class="dialog-head">
+          <h2 id="shareDialogTitle">分享会话</h2>
+          <button class="window-control close" id="shareDialogClose" type="button" aria-label="关闭">×</button>
+        </header>
+        <div class="dialog-body" id="shareDialogBody"></div>
+        <div class="dialog-message" id="shareDialogMessage" role="status" aria-live="polite"></div>
+        <footer class="dialog-actions">
+          <button class="panel-action subtle" id="shareDialogCancel" type="button">取消</button>
+          <button class="panel-action primary" id="shareDialogSubmit" type="submit">创建私有 Gist</button>
+        </footer>
+      </form>
+    </dialog>
+    <script src="./panel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "name": "pispider-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PiSpider desktop client.",
+  "main": "main.cjs",
+  "type": "commonjs",
+  "files": [
+    "main.cjs",
+    "preload.cjs",
+    "mcp-catalog.cjs",
+    "slash-helpers.cjs",
+    "packaged-runtime.cjs",
+    "oauth-bridge.mjs",
+    "catalog/**/*",
+    "renderer/**/*",
+    "vendor/**/*",
+    "scripts/**/*"
+  ],
+  "scripts": {
+    "build:mermaid": "node scripts/build-mermaid-runtime.mjs",
+    "prepare:packaged": "node scripts/prepare-packaged-runtime.mjs",
+    "dist:win": "npm run prepare:packaged && electron-builder --win",
+    "test": "node --test test/*.test.mjs",
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "devDependencies": {
+    "electron": "45.3.2",
+    "electron-builder": "26.18.0",
+    "mermaid": "12.3.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

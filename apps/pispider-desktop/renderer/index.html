@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; script-src 'self'; frame-src 'self' https: http:; connect-src 'self' https: ws: wss:;"
+    />
+    <title>PiSpider</title>
+    <link rel="stylesheet" href="./tokens.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="titlebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+            <path d="M5 7.5h7.2c2.1 0 3.8 1.7 3.8 3.8v1.4c0 2.1-1.7 3.8-3.8 3.8H8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M8.5 4.5v4M8.5 16.5v4M4.5 12h13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="18.2" cy="12" r="1.2" fill="currentColor"/>
+          </svg>
+        </div>
+        <span class="brand-name">PiSpider</span>
+      </div>
+
+      <div class="titlebar-actions">
+        <span class="runtime-pill" id="runtimePill"><i></i> 连接中</span>
+        <button class="icon-button" id="shortcutsButton" type="button" title="键盘快捷键 (Ctrl+/)" aria-label="键盘快捷键">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none">
+            <rect x="2.4" y="5" width="15.2" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M5.2 8h1M8 8h1M10.8 8h1M13.6 8h1M5.2 10.6h1M8 10.6h1M10.8 10.6h1M13.6 10.6h1M6.2 12.7h7.6" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+        </button>
+        <button class="icon-button" id="themeButton" type="button" title="切换主题" aria-label="切换主题">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none">
+            <circle cx="10" cy="10" r="3.1" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M10 2.4v1.6M10 16v1.6M2.4 10h1.6M16 10h1.6M4.6 4.6l1.1 1.1M14.3 14.3l1.1 1.1M15.4 4.6l-1.1 1.1M5.7 14.3l-1.1 1.1" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </button>
+        <button class="icon-button" id="panelButton" type="button" title="切换上下文面板" aria-label="切换上下文面板" aria-expanded="true">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none">
+            <rect x="2.5" y="3.5" width="15" height="13" rx="2" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M12.8 3.5v13" stroke="currentColor" stroke-width="1.3"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-body" id="appBody">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <button class="new-task" id="newTaskButton" type="button">
+            <span class="new-task-icon">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.4"/>
+              </svg>
+            </span>
+            <span>新建任务</span>
+            <kbd>Ctrl N</kbd>
+          </button>
+          <label class="search-box">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <circle cx="7" cy="7" r="4.2" stroke="currentColor" stroke-width="1.2"/>
+              <path d="m10.2 10.2 3 3" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+            <input id="searchInput" type="search" placeholder="搜索任务或消息" autocomplete="off" />
+            <kbd>/</kbd>
+          </label>
+        </div>
+
+        <section class="sidebar-section">
+          <div class="sidebar-section-head"><span>项目</span></div>
+          <button class="project-row" id="overviewButton" type="button">
+            <span class="project-icon">
+              <svg viewBox="0 0 18 18" width="15" height="15" fill="none">
+                <path d="M3 6.2 9 3l6 3.2v5.6L9 15l-6-3.2V6.2Z" stroke="currentColor" stroke-width="1.2"/>
+                <path d="M3 6.2 9 9.4l6-3.2M9 9.4V15" stroke="currentColor" stroke-width="1.2"/>
+              </svg>
+            </span>
+            <span class="project-name" id="projectName">PiSpider</span>
+            <span class="project-badge">本地</span>
+          </button>
+        </section>
+
+        <section class="sidebar-section">
+          <div class="sidebar-section-head"><span>资源</span></div>
+          <nav class="sidebar-nav" aria-label="资源">
+            <button class="nav-item" data-panel="rules" type="button">
+              <svg viewBox="0 0 18 18" width="15" height="15" fill="none">
+                <path d="M4 3.5h10v11H4z" stroke="currentColor" stroke-width="1.2"/>
+                <path d="M6.4 6.5h5.2M6.4 9.2h5.2M6.4 11.8h3.2" stroke="currentColor" stroke-width="1.1"/>
+              </svg>
+              <span>规则</span>
+              <span class="nav-count" id="ruleCount">0</span>
+            </button>
+            <button class="nav-item" data-panel="skills" type="button">
+              <svg viewBox="0 0 18 18" width="15" height="15" fill="none">
+                <path d="M9 2.8 10.7 6l3.5.5-2.5 2.5.6 3.6-3.3-1.7-3.3 1.7.6-3.6L3.8 6.5 7.3 6 9 2.8Z" stroke="currentColor" stroke-width="1.1"/>
+              </svg>
+              <span>技能</span>
+              <span class="nav-count" id="skillCount">0</span>
+            </button>
+            <button class="nav-item" data-panel="mcp" type="button">
+              <svg viewBox="0 0 18 18" width="15" height="15" fill="none">
+                <path d="M4 4h4v4H4zM10 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4z" stroke="currentColor" stroke-width="1.1"/>
+              </svg>
+              <span>MCP</span>
+              <span class="nav-count" id="mcpCount">0</span>
+            </button>
+            <button class="nav-item" data-panel="extensions" type="button">
+              <svg viewBox="0 0 18 18" width="15" height="15" fill="none">
+                <path d="M5 3.5h3v2a1 1 0 0 0 2 0v-2h3v3h2a1 1 0 0 1 0 2h-2v3h-3v-2a1 1 0 0 0-2 0v2H5v-3H3a1 1 0 0 1 0-2h2v-3Z" stroke="currentColor" stroke-width="1.1"/>
+              </svg>
+              <span>扩展</span>
+              <span class="nav-count" id="extensionCount">0</span>
+            </button>
+            <button class="nav-item nav-item-wide" data-panel="status" type="button">
+              <svg viewBox="0 0 18 18" width="15" height="15" fill="none">
+                <circle cx="9" cy="9" r="5.4" stroke="currentColor" stroke-width="1.1"/>
+                <path d="M9 8.2v3.8M9 5.7h.01" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+              <span>状态</span>
+            </button>
+          </nav>
+        </section>
+
+        <section class="sidebar-section tasks-section">
+          <div class="sidebar-section-head">
+            <span>最近</span>
+            <span class="section-count" id="sessionCount">0</span>
+            <button class="mini-button" id="refreshSessionsButton" type="button" title="刷新任务" aria-label="刷新任务">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+                <path d="M13 8a5 5 0 1 1-1.5-3.6" stroke="currentColor" stroke-width="1.2"/>
+                <path d="M13 3.5v3h-3" stroke="currentColor" stroke-width="1.2"/>
+              </svg>
+            </button>
+          </div>
+          <div class="session-list" id="sessionList">
+            <div class="sidebar-empty">暂无任务</div>
+          </div>
+        </section>
+
+        <div class="sidebar-footer">
+          <button class="footer-settings" id="settingsButton" type="button" title="打开设置" aria-label="打开设置">
+            <span class="footer-settings-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </span>
+            <span class="footer-settings-label">设置</span>
+            <span class="footer-settings-hint">Ctrl+,</span>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-column">
+        <div class="thread-header">
+          <div class="thread-heading">
+            <h1 id="threadTitle">新任务</h1>
+            <div class="thread-subline">
+              <span id="threadRange" hidden></span>
+              <span class="thread-window-nav" id="threadWindowNav" hidden>
+                <button class="thread-window-button" id="threadJumpEarliest" type="button" title="跳到最早的历史窗口">最早</button>
+                <button class="thread-window-button" id="threadJumpLatest" type="button" title="重置到最新窗口并滚到底部">最新</button>
+              </span>
+            </div>
+          </div>
+          <div class="thread-actions">
+            <button class="ghost-button" id="sessionInfoButton" type="button">
+              会话
+            </button>
+          </div>
+        </div>
+
+        <section class="thread-scroll" id="threadScroll">
+          <div class="scroll-latest-wrap">
+            <button class="scroll-latest" id="scrollLatestButton" type="button" hidden>回到最新</button>
+          </div>
+          <div class="thread-empty" id="threadEmpty">
+            <h2 id="emptyTitle">开始一个任务</h2>
+            <div class="starter-grid">
+              <button class="starter-card" data-starter="用简洁的语言解释这个仓库。先说明入口和主要运行时流程。" type="button">
+                <span class="starter-icon">
+                  <svg viewBox="0 0 18 18" width="16" height="16" fill="none">
+                    <circle cx="8" cy="8" r="4.4" stroke="currentColor" stroke-width="1.2"/>
+                    <path d="m11.4 11.4 3.2 3.2M6.2 8h3.6" stroke="currentColor" stroke-width="1.2"/>
+                  </svg>
+                </span>
+                <strong>解释仓库</strong>
+              </button>
+              <button class="starter-card" data-starter="检查当前工作区，提出一个小而可验证的改进。先给计划，不要直接改文件。" type="button">
+                <span class="starter-icon">
+                  <svg viewBox="0 0 18 18" width="16" height="16" fill="none">
+                    <path d="M4 4.2h10v9.6H4z" stroke="currentColor" stroke-width="1.2"/>
+                    <path d="M6.2 7h5.6M6.2 9.4h4.2M6.2 11.8h2.6" stroke="currentColor" stroke-width="1.1"/>
+                  </svg>
+                </span>
+                <strong>规划一次改动</strong>
+              </button>
+              <button class="starter-card" data-starter="找出当前任务涉及的文件的路径，说明它们如何连接。回答要具体，并引用文件路径。" type="button">
+                <span class="starter-icon">
+                  <svg viewBox="0 0 18 18" width="16" height="16" fill="none">
+                    <circle cx="4.5" cy="4.5" r="1.8" stroke="currentColor" stroke-width="1.1"/>
+                    <circle cx="13.5" cy="4.5" r="1.8" stroke="currentColor" stroke-width="1.1"/>
+                    <circle cx="9" cy="13.5" r="1.8" stroke="currentColor" stroke-width="1.1"/>
+                    <path d="M6.3 4.5h5.4M5.6 6.2l2.7 5.5M12.4 6.2l-2.7 5.5" stroke="currentColor" stroke-width="1.1"/>
+                  </svg>
+                </span>
+                <strong>追踪代码路径</strong>
+              </button>
+            </div>
+          </div>
+
+          <div class="message-list" id="messageList" hidden></div>
+          <div class="tool-list" id="toolList"></div>
+        </section>
+
+        <div class="composer-shell">
+          <div class="status-banner" id="statusBanner" hidden role="status">
+            <span class="status-banner-mark" aria-hidden="true"></span>
+            <span class="status-banner-text" id="statusBannerText"></span>
+            <button class="status-banner-action" id="statusBannerAction" type="button" hidden></button>
+            <button class="status-banner-dismiss" id="statusBannerDismiss" type="button" aria-label="关闭提示">×</button>
+          </div>
+          <div class="composer" id="composer">
+            <div class="file-suggestions" id="fileSuggestions" hidden></div>
+            <div class="command-suggestions" id="commandSuggestions" hidden></div>
+            <div class="composer-popover" id="permissionPopover" hidden></div>
+            <div class="composer-popover composer-popover-right" id="modelPopover" hidden></div>
+            <div class="composer-popover composer-popover-right" id="threadStatsPopover" hidden></div>
+            <div class="composer-popover queue-popover" id="queuePopover" hidden>
+              <div class="popover-heading popover-heading-row">
+                <span>排队消息</span>
+                <button class="popover-cycle" id="queueCloseButton" type="button">关闭</button>
+              </div>
+              <div class="queue-list" id="queueList"></div>
+              <div class="queue-foot">
+                当前 Pi RPC 只提供 <code>clear_queue</code>；逐条删除需要上游 <code>get_queue</code>。
+              </div>
+            </div>
+            <div class="attachment-list" id="attachmentList" hidden></div>
+            <textarea
+              id="promptInput"
+              rows="1"
+              placeholder="输入任务，@ 引用文件，/ 查看命令"
+              autocomplete="off"
+              spellcheck="false"
+            ></textarea>
+            <div class="composer-toolbar">
+              <div class="composer-left">
+                <button class="composer-icon" id="attachButton" type="button" title="添加附件" aria-label="添加附件">
+                  <svg viewBox="0 0 18 18" width="15" height="15" fill="none">
+                    <path d="M10.8 5.2 6.3 9.7a2.1 2.1 0 0 0 3 3l5.3-5.3a3.4 3.4 0 0 0-4.8-4.8L4.2 7.9a5 5 0 1 0 7.1 7.1l4.1-4.1" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <span class="context-pill" id="cwdPill">
+                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+                    <path d="M2.5 5.2h4l1.1 1.3h5.9v6H2.5v-7.3Z" stroke="currentColor" stroke-width="1.1"/>
+                  </svg>
+                  <span id="cwdLabel">项目</span>
+                </span>
+                <button class="composer-select" id="permissionButton" type="button" title="当前会话工具权限">
+                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+                    <path d="M8 2.1 13 4v4.1c0 3-2 4.9-5 5.8-3-.9-5-2.8-5-5.8V4l5-1.9Z" stroke="currentColor" stroke-width="1.1"/>
+                  </svg>
+                  <span id="permissionChip">全部允许</span>
+                  <svg class="composer-chevron" viewBox="0 0 10 10" width="9" height="9" fill="none">
+                    <path d="m2.5 4 2.5 2.5L7.5 4" stroke="currentColor" stroke-width="1.2"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="composer-right">
+                <button class="composer-context" id="threadStatsButton" type="button" title="查看会话用量" aria-label="上下文用量" aria-expanded="false">
+                  <span class="context-ring" aria-hidden="true">
+                    <svg viewBox="0 0 18 18" width="20" height="20">
+                      <circle class="context-ring-track" cx="9" cy="9" r="7" fill="none" stroke-width="2.6"/>
+                    </svg>
+                  </span>
+                  <span class="context-ring-value">—</span>
+                </button>
+                <button class="composer-select model-select" id="modelButton" type="button" title="切换模型">
+                  <span id="modelChip">未配置模型</span>
+                  <span class="model-thinking" id="thinkingChip"></span>
+                  <svg class="composer-chevron" viewBox="0 0 10 10" width="9" height="9" fill="none">
+                    <path d="m2.5 4 2.5 2.5L7.5 4" stroke="currentColor" stroke-width="1.2"/>
+                  </svg>
+                </button>
+                <button class="send-button" id="sendButton" type="button" title="发送" aria-label="发送">
+                  <svg viewBox="0 0 18 18" width="16" height="16" fill="none">
+                    <path d="M9 14.5V3.7M4.8 7.9 9 3.7l4.2 4.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="composer-hint">
+            <span>Enter 发送 · Shift+Enter 换行 · Ctrl+B 工作区 · Ctrl+G 外部编辑</span>
+            <span class="composer-hint-actions">
+              <span id="streamingHint"></span>
+              <button class="hint-button" id="commandPaletteHintButton" type="button" title="命令面板 (Ctrl+Shift+P)">命令</button>
+              <button class="hint-button" id="shortcutsHintButton" type="button">快捷键</button>
+              <button class="hint-button" id="queueButton" type="button" hidden aria-expanded="false">0 条排队</button>
+              <button class="hint-button" id="clearQueueButton" type="button" hidden>清空排队</button>
+            </span>
+          </div>
+        </div>
+      </main>
+
+      <aside class="context-panel" id="contextPanel">
+        <div class="context-head">
+          <span>工作区</span>
+          <button class="mini-button" id="closePanelButton" type="button" title="关闭面板" aria-label="关闭面板">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+              <path d="m4.5 4.5 7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="context-tabs" id="contextTabs">
+          <button class="context-tab active" data-tab="browser" type="button">浏览器</button>
+          <button class="context-tab" data-tab="changes" type="button">代码 <span class="tab-count" id="changeCount">0</span></button>
+        </div>
+        <div class="context-body" id="contextBody">
+          <section class="browser-view" id="browserView">
+            <form class="browser-bar" id="browserForm">
+              <div class="browser-nav" aria-label="网页导航">
+                <button class="browser-nav-button" id="browserBack" type="button" title="后退" aria-label="后退" disabled>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                    <path d="M14.5 6.5 9 12l5.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="browser-nav-button" id="browserForward" type="button" title="前进" aria-label="前进" disabled>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                    <path d="M9.5 6.5 15 12l-5.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="browser-nav-button" id="browserReload" type="button" title="刷新" aria-label="刷新">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                    <path d="M18 8.5a6.5 6.5 0 1 0 .6 7.1M18 5.5v3.2h-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              <input
+                class="browser-address"
+                id="browserAddress"
+                type="text"
+                placeholder="输入网址，例如 example.com"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button class="browser-go" type="submit">打开</button>
+            </form>
+            <div class="browser-status" id="browserStatus">输入网址后在这里打开网页。</div>
+            <webview class="browser-frame" id="browserFrame" src="about:blank" hidden></webview>
+          </section>
+          <section class="changes-view" id="changesView" hidden>
+            <div id="changesBody"></div>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <div class="panel-backdrop" id="panelBackdrop" hidden></div>
+
+    <div class="extension-dialog" id="extensionDialog" hidden>
+      <section class="extension-card" role="dialog" aria-modal="true" aria-labelledby="extensionDialogTitle">
+        <div class="extension-head">
+          <div>
+            <div class="extension-kicker" id="extensionDialogKicker">需要确认</div>
+            <h2 id="extensionDialogTitle">操作确认</h2>
+          </div>
+          <button class="extension-close" id="extensionDialogClose" type="button" aria-label="取消">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <path d="m4.5 4.5 7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="extension-body" id="extensionDialogBody"></div>
+        <div class="extension-actions" id="extensionDialogActions"></div>
+      </section>
+    </div>
+
+    <div class="command-palette" id="commandPalette" hidden>
+      <section class="command-palette-card" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle">
+        <div class="command-palette-head">
+          <div>
+            <div class="command-palette-kicker">桌面操作</div>
+            <h2 id="commandPaletteTitle">命令面板</h2>
+          </div>
+          <kbd>Esc</kbd>
+        </div>
+        <input
+          class="command-palette-input"
+          id="commandPaletteInput"
+          type="search"
+          placeholder="搜索动作或 Pi 命令…"
+          autocomplete="off"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="commandPaletteList"
+          aria-label="搜索命令"
+        />
+        <div class="command-palette-list" id="commandPaletteList" role="listbox" aria-label="命令列表"></div>
+        <div class="command-palette-foot">
+          <span><kbd>↑↓</kbd> 选择 · <kbd>Enter</kbd> 执行</span>
+          <span><kbd>Ctrl+Shift+P</kbd> 再次打开</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="shortcuts-dialog" id="shortcutsDialog" hidden>
+      <section class="shortcuts-card" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle">
+        <div class="shortcuts-head">
+          <div>
+            <div class="shortcuts-kicker">桌面操作</div>
+            <h2 id="shortcutsTitle">键盘快捷键</h2>
+          </div>
+          <button class="extension-close" id="shortcutsClose" type="button" aria-label="关闭快捷键">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <path d="m4.5 4.5 7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="shortcuts-body">
+          <section class="shortcut-group">
+            <h3>输入与发送</h3>
+            <div class="shortcut-row"><span>发送消息</span><kbd>Enter</kbd></div>
+            <div class="shortcut-row"><span>换行</span><kbd>Shift+Enter</kbd></div>
+            <div class="shortcut-row"><span>流式输出时插话</span><kbd>Ctrl+Enter</kbd></div>
+            <div class="shortcut-row"><span>用外部编辑器写长提示</span><kbd>Ctrl+G</kbd></div>
+          </section>
+          <section class="shortcut-group">
+            <h3>工作区与窗口</h3>
+            <div class="shortcut-row"><span>新建任务</span><kbd>Ctrl+N</kbd></div>
+            <div class="shortcut-row"><span>显示 / 隐藏工作区</span><kbd>Ctrl+B</kbd></div>
+            <div class="shortcut-row"><span>打开命令面板</span><kbd>Ctrl+Shift+P</kbd></div>
+            <div class="shortcut-row"><span>打开快捷键总览</span><kbd>Ctrl+/</kbd></div>
+            <div class="shortcut-row"><span>放大 / 缩小</span><kbd>Ctrl+ / -</kbd></div>
+            <div class="shortcut-row"><span>恢复 100% 缩放</span><kbd>Ctrl+0</kbd></div>
+          </section>
+          <section class="shortcut-group">
+            <h3>导航与弹层</h3>
+            <div class="shortcut-row"><span>搜索任务</span><kbd>Ctrl+K</kbd></div>
+            <div class="shortcut-row"><span>跳到最早消息窗口</span><kbd>Ctrl+Home</kbd></div>
+            <div class="shortcut-row"><span>回到最新消息</span><kbd>Ctrl+End</kbd></div>
+            <div class="shortcut-row"><span>输入框外聚焦搜索</span><kbd>/</kbd></div>
+            <div class="shortcut-row"><span>选择文件 / 命令建议</span><kbd>↑ ↓</kbd></div>
+            <div class="shortcut-row"><span>关闭弹层或对话框</span><kbd>Esc</kbd></div>
+          </section>
+          <section class="shortcut-group">
+            <h3>输入辅助</h3>
+            <div class="shortcut-row"><span>引用文件</span><kbd>@</kbd></div>
+            <div class="shortcut-row"><span>查看命令</span><kbd>/</kbd></div>
+            <div class="shortcut-row"><span>再次打开本页</span><kbd>F1</kbd></div>
+          </section>
+        </div>
+        <div class="shortcuts-foot">
+          <span><kbd>Ctrl+/</kbd> 或 <kbd>F1</kbd> 再次打开</span>
+          <span><kbd>Esc</kbd> 关闭</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="shortcuts-dialog" id="changelogDialog" hidden>
+      <section class="shortcuts-card changelog-card" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
+        <div class="shortcuts-head">
+          <div>
+            <div class="shortcuts-kicker">版本信息</div>
+            <h2 id="changelogTitle">变更日志</h2>
+          </div>
+          <button class="extension-close" id="changelogClose" type="button" aria-label="关闭变更日志">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <path d="m4.5 4.5 7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="shortcuts-body changelog-body message-text" id="changelogBody"></div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./slash-commands.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

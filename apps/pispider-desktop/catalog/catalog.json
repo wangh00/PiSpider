@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "mcp": [
+    {
+      "id": "chrome-devtools",
+      "name": "chrome-devtools",
+      "label": "Chrome DevTools",
+      "package": {
+        "name": "chrome-devtools-mcp",
+        "version": "1.13.0",
+        "bin": "chrome-devtools-mcp"
+      },
+      "description": "Google 官方 Chrome DevTools MCP。连接实时 Chrome，检查页面、控制台、网络与性能数据。",
+      "homepage": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "exposure": "codemode",
+      "args": ["--no-usage-statistics", "--no-performance-crux"],
+      "env": {
+        "CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS": "1"
+      },
+      "prerequisite": "Google Chrome 或 Chrome for Testing"
+    },
+    {
+      "id": "context7",
+      "name": "context7",
+      "label": "Context7",
+      "transport": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "description": "Upstash Context7 托管的库文档 MCP。按库名解析并读取版本化文档与代码示例，匿名可用。",
+      "homepage": "https://context7.com",
+      "exposure": "direct",
+      "prerequisite": "无需 API Key；匿名访问有速率限制，配置 API Key 可提高额度。"
+    }
+  ]
+}

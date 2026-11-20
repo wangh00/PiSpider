@@ -1,0 +1,37 @@
+appId: com.pispider.desktop
+productName: PiSpider
+
+directories:
+  output: release
+  buildResources: build
+
+asar: true
+asarUnpack:
+  - "**/oauth-bridge.mjs"
+
+files:
+  - main.cjs
+  - preload.cjs
+  - mcp-catalog.cjs
+  - slash-helpers.cjs
+  - packaged-runtime.cjs
+  - oauth-bridge.mjs
+  - catalog/**/*
+  - renderer/**/*
+  - vendor/**/*
+  - scripts/**/*
+
+extraResources:
+  - from: build/packaged/launcher
+    to: launcher
+  - from: build/packaged/runtime
+    to: runtime
+
+win:
+  target: nsis
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
