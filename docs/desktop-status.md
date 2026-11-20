@@ -17,6 +17,7 @@
 | 逐模型思考默认 | 模型弹层为当前模型选择启动默认档位，写入 `settings.json.modelThinkingLevels`；保存后重启 Agent 并同步当前会话，可清除回“跟随全局” | [desktop-parity.md](desktop-parity.md) §1；[acceptance.md](acceptance.md) §10 |
 | 会话手动排序 | 侧栏“排序任务”模式：置顶 / 最近分组，拖动 ≡ 或 `Alt+↑/↓` 调整，展示序写入 `desktop.json.sessionOrder`，普通视图按该序展示，支持恢复默认 | [desktop-ui.md](desktop-ui.md) §5；[acceptance.md](acceptance.md) §11 |
 | 高级 settings | 设置窗口“高级设置”卡：transport、HTTP proxy、shell path、defaultTools（纯名称 / `+` / `-`）、compaction 开关与 token 参数；写用户级 `settings.json`，保存后重启 Agent，逐模型压缩覆盖保留 | [desktop-parity.md](desktop-parity.md) §6；[acceptance.md](acceptance.md) §12 |
+| doctor 日志导出 | 状态窗口“导出诊断”生成脱敏文本报告：应用 / 运行时信息、环境诊断、最近 400 条运行时日志（agent stderr、runtime 状态与退出事件）；移除认证原始输出并屏蔽常见密钥形态 | [desktop-parity.md](desktop-parity.md) §6；[acceptance.md](acceptance.md) §13 |
 
 其余已落地能力（会话控制、模型 / 思考档位 / 会话权限、规则 / 技能 / 提示词 / MCP / 扩展管理、浏览器与代码页、上下文用量、provider OAuth 三家等）的逐项对照见 [desktop-parity.md](desktop-parity.md) §1–§6；UI 已落地清单见 [desktop-ui.md](desktop-ui.md) §5。
 
@@ -48,7 +49,7 @@
 4. [development.md](development.md) — 环境准备、启动、打包、测试流程。
 5. [desktop-ui.md](desktop-ui.md) — UI 信息架构、视觉基线与性能方向。
 6. [commands.md](commands.md) — `/ps` 命令、`ps_task`、数据目录与环境变量速查。
-7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
+7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§13 doctor 日志导出，2026-11-20；§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
 
 补充参考：[architecture.md](architecture.md)（分层与 RPC 链路）、[desktop-runtime-contract.md](desktop-runtime-contract.md)（RPC 契约）、[apps/pispider-desktop/README.md](../apps/pispider-desktop/README.md)（Electron 运行链路与 IPC）。
 
@@ -138,7 +139,7 @@
 | P1-8b | MCP 单工具运行态订阅 | 上游阻塞：服务器级 `mcp_status_changed` live state 已端到端落地；`McpLiveServerStatus` 只含工具名数组，无单工具运行 / 可用状态字段 | 补齐后 MCP 面板可展示逐工具运行态 |
 | P1-9 | CORE_VERSION 1.5.2 三处同步升级流程 + 两个 `package.json` 缺失 `author` 的构建警告 | 无；桌面可独立做 | 打包维护性：升级 core 版本时易漏三处同步 |
 | P1-10 | 打包版 stdio 预置 MCP 的 npm 方案：随包 npm-cli 或维持读不到 npm CLI 时的降级 | 体积权衡；桌面可独立做 | 打包实例 MCP 可用性 |
-| P1-11 | doctor 日志导出 | 无；桌面可独立做 | 状态页当前只有基础环境诊断 |
+| P1-11 | doctor 日志导出 | 无（已完成 2026-11-20） | 状态窗口“导出诊断”写脱敏文本报告，含应用 / 运行时信息、环境诊断和最近 400 条 runtime 日志；导出前移除 auth 原始输出并做密钥形态屏蔽 |
 
 ### P2：打磨与外部分发
 

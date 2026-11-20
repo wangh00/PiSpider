@@ -575,6 +575,58 @@ npm run pispider:desktop
 - 项目级 `.pi/settings.json` 的同名键会覆盖用户级，本轮未做“有效值合并”展示。
 - 打包产物仍未重建；开发版加载新代码，便携版 / 安装包需要 `npm run dist:win`。
 
+## 13. doctor 日志导出（2026-11-20）
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/doctor-report.cjs` | 新增纯文本报告格式化与统一脱敏：`redactDiagnosticText()` 覆盖 `sk-*`、GitHub / Google key、Bearer、JSON 和 `key=value` 形态的 token / secret / password；`buildDiagnosticsReport()` 生成应用摘要、环境诊断、运行时日志和结构化数据 |
+| `apps/pispider-desktop/main.cjs` | 新增 `diagnosticLogEntries` 环形缓冲与 `recordDiagnostic()`（400 条 / 20 万字符 / 单条 6000 字符）；记录 runtime 状态迁移、agent stderr、启动错误与退出事件；新增 `exportDiagnosticsReport()` 与 `system:export-diagnostics`，保存为 `.txt` 并移除 `diagnostics.auth.raw` |
+| `apps/pispider-desktop/preload.cjs` | 暴露 `exportDiagnostics(targetPath)` |
+| `apps/pispider-desktop/package.json` / `electron-builder.yml` | 将 `doctor-report.cjs` 加入打包白名单，避免打包版主进程 `require` 缺失 |
+| `apps/pispider-desktop/renderer/panel.js` | 状态窗口环境诊断卡新增“导出诊断”；导出中禁用按钮，成功后提示路径、大小和日志条数 |
+| `apps/pispider-desktop/renderer/panel.css` | `.diagnostic-actions` 双按钮排布 |
+| `apps/pispider-desktop/test/doctor-report.test.mjs` | 3 个单测：凭据形态脱敏、报告章节与日志脱敏、空日志 / 缺失诊断 |
+| `apps/pispider-desktop/README.md` | 状态窗口补诊断导出说明 |
+| `docs/desktop-parity.md` | doctor 行补“导出诊断”；§7 P1-11 标记完成 |
+| `docs/desktop-status.md` | 已落地能力新增“doctor 日志导出”；P1-11 标记完成；阅读顺序加 §13 |
+| `docs/desktop-ui.md` | §5 新增导出实现与 CDP 记录 |
+| `docs/architecture.md` | 补 `system:export-diagnostics` 路径 |
+
+### 行为
+
+- 日志缓冲只在主进程内存中保留本轮运行记录，不写磁盘；超过 400 条或 20 万字符时从最旧条目开始丢弃。
+- 导出报告为纯文本 `.txt`，默认名 `pispider-diagnostics-<ISO 时间戳>.txt`，写入用户选择路径（未指定时打开保存对话框），文件权限 0600。
+- 报告包含应用版本 / 平台 / Electron / Node / 打包状态 / 语言 / 仓库与数据目录、Agent 状态 / pid / 命令数、完整环境诊断、运行时日志和结构化 JSON。
+- 导出前删除 `diagnostics.auth.raw`；格式化阶段再统一脱敏，避免 CLI 错误、package 输出或 stderr 里的密钥进入报告。
+- 导出本身会追加一条 `diagnostics` 信息日志，但只影响后续导出。
+
+### 验证（隔离开发实例，CDP 9348）
+
+- 状态窗口环境诊断卡显示“导出诊断 | 重新检查”，`exportDiagnostics` 为函数，按钮初始可用。
+- 直接调用 `window.pispider.exportDiagnostics("E:\\mygit\\SpiderBuddy\\.artifacts\\doctor-test.txt")`：返回 `ok:true`、`bytes:3386`、`logEntries:3`，文件成功写入；报告头为 `PiSpider 诊断报告`、`应用：PiSpider 0.1.0`。
+- 报告包含“PiSpider 诊断报告 / 环境诊断 / 运行时日志（3 条）/ 结构化数据”；日志依次为 `runtime starting`、`agent.stderr`（PiSpider 本地核心启动行）、`runtime running`。
+- 报告的环境诊断段包含 Pi 1.5.2、Node / Electron 版本、`auth:null`（临时环境无默认模型）、`No packages installed`、settings / models / auth 文件状态、权限与路径；结构化段包含 app / agent / diagnostics，无 auth 原始输出。
+- 单测覆盖 `api_key=sk-*`、`Authorization: Bearer *`、JSON `token` / `password`、`github_pat_*`、Google `AIza*` 的屏蔽，以及日志换行保留。
+- 设置页截图检查：状态卡右侧两个操作按钮同排，无溢出；诊断列表和检查时间正常。
+- 验证后停止隔离 Electron，删除临时 `ui-home` / `ui-userdata`，未触碰真实 `~/.pispider`。
+
+### 自动化检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0（2575 文件，无修复） |
+| 2 | `npm run pispider:check` | exit 0 |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `cd apps/pispider-desktop; npm test` | 46/46 pass |
+
+### 遗留
+
+- 日志只在当前主进程生命周期内保留；应用重启前的 stderr 不会进入报告。
+- 报告不含网络探测、`pi doctor` 完整检查项，也不打包 session / auth 文件；需要更完整现场时仍要手动收集。
+- 报告为单个 `.txt`，没有压缩包；如需附件大小治理，后续可加 ZIP 或按时间裁剪。
+
 
 
 

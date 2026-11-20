@@ -124,7 +124,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 | 能力 | Desktop | 状态 | 说明 |
 | --- | --- | --- | --- |
 | Pi 高级 settings | 设置 → 高级设置卡：transport、HTTP proxy、shell path、defaultTools、compaction 开关与 token 参数 | 已接 | 写用户级 `settings.json`，保存后重启 Agent；compaction `modelOverrides` 原样保留；项目级 `.pi/settings.json` 仍可能覆盖 |
-| doctor / 诊断日志 | 状态 → 环境诊断 | 部分 | 通过 Pi core CLI 检查版本、当前 provider / model 的认证状态、`pi list` 的 package 声明，并汇总 Node / Electron、配置文件、项目资源与权限；不提供日志导出、网络诊断或 `pi doctor` 的完整检查项 |
+| doctor / 诊断日志 | 状态 → 环境诊断 | 部分 | 通过 Pi core CLI 检查版本、当前 provider / model 的认证状态、`pi list` 的 package 声明，并汇总 Node / Electron、配置文件、项目资源与权限；“导出诊断”写脱敏文本报告，含应用信息、环境诊断和最近运行时日志；仍不提供网络诊断或 `pi doctor` 的完整检查项 |
 | Pi / 包更新 | 无 | 部分 | Windows x64 NSIS 安装包 `PiSpider Setup <version>.exe` 已由 electron-builder 26.18.0 构建产出（非 oneClick、perMachine=false），安装流程本身尚未执行安装冒烟；`win-unpacked/PiSpider.exe` 经最小 PATH + CDP 只读冒烟验证；应用图标接入 `build/icon.ico`。未做：代码签名、自动更新、macOS / Linux 目标、portable 单文件目标；Pi / 包自身更新仍无入口 |
 | print / JSON / RPC / SDK 模式 | 不适用 | 不适用 | 桌面本身通过 RPC 驱动 runtime，不需要给用户暴露这些 CLI 输出模式 |
 | TUI 键位 / terminal 配置 | 不适用 | 不适用 | 桌面使用自己的快捷键，不复制终端 TUI |
@@ -164,7 +164,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 5. MCP 单工具运行态订阅：服务器级连接 live state 已接（RPC `mcp_status` 快照 + `mcp_status_changed` 推送原地更新）；单工具运行时状态订阅仍缺上游数据，`McpLiveServerStatus.tools` 仅为工具名数组，无单工具运行 / 可用状态字段。
 6. CORE_VERSION 三处同步升级流程（`scripts/pispider-launcher.mjs`、`scripts/prepare-packaged-runtime.mjs`、`packaged-runtime.cjs`）与 `package.json` 缺失 `author` 警告：桌面可独立做（打包维护性）。
 7. 打包版 stdio 预置 MCP 的 npm 方案：随包 npm-cli 或维持现有 npm CLI 缺失降级，属体积权衡；桌面可独立做。
-8. doctor 日志导出：桌面可独立做。
+8. doctor 日志导出：已完成（2026-11-20）。状态窗口“导出诊断”生成脱敏文本报告，包含应用 / 运行时信息、环境诊断和最近 400 条运行时日志；日志来自 agent stderr、runtime 状态与退出事件。报告导出前移除认证原始输出，并屏蔽常见 API Key / Bearer / token 形态；仍不包含网络诊断或 `pi doctor` 的完整检查项。
 
 **P2：打磨与外部分发**
 
