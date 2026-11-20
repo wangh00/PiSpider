@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "PiSpider desktop client.",
+  "author": "wangh00",
   "main": "main.cjs",
   "type": "commonjs",
   "files": [
