@@ -641,6 +641,21 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				return success(id, "fork", { text: result.selectedText, cancelled: result.cancelled });
 			}
 
+			case "navigate_tree": {
+				const result = await session.navigateTree(command.targetId, {
+					summarize: command.summarize,
+					customInstructions: command.customInstructions,
+					replaceInstructions: command.replaceInstructions,
+					label: command.label,
+				});
+				return success(id, "navigate_tree", {
+					editorText: result.editorText,
+					cancelled: result.cancelled,
+					aborted: result.aborted,
+					summaryEntryId: result.summaryEntry?.id,
+				});
+			}
+
 			case "clone": {
 				const leafId = session.sessionManager.getLeafId();
 				if (!leafId) {

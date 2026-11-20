@@ -201,6 +201,11 @@ function agentErrorMessage(message, fallback = "操作失败") {
   if (/Nothing to export yet/i.test(text)) return "还没有可导出的对话，先发送一条消息";
   if (/This session has not been saved yet/i.test(text)) return "当前会话还没有保存，先发送一条消息再复制或回退";
   if (/Nothing to compact/i.test(text)) return "当前上下文还不需要压缩";
+  if (/Wait for the current response to finish/i.test(text)) return "当前回复还没结束，结束后再切换节点";
+  if (/Wait for the current compaction or tree navigation/i.test(text)) {
+    return "当前压缩或树切换还没结束，稍后再试";
+  }
+  if (/Entry .* not found/i.test(text)) return "树节点不存在，刷新会话树后重试";
   return text || fallback;
 }
 
@@ -828,18 +833,78 @@ function mcpStatusHtml(server, status) {
                         ? "未检查"
                         : report.state || "未连接";
   const detail = report.error ? `<div class="mcp-error">${escapeHtml(report.error)}</div>` : "";
+  const toolRuntime = report.toolRuntime && typeof report.toolRuntime === "object" ? report.toolRuntime : {};
   const tools = report.tools?.length
     ? (() => {
         const shown = report.tools.slice(0, 10);
         const hiddenCount = report.tools.length - shown.length;
         return `<div class="mcp-tools">${shown
-          .map((tool) => `<span class="mcp-tool">${escapeHtml(tool)}</span>`)
+          .map((tool) => {
+            const runtime = toolRuntime[tool];
+            const runtimeLabel =
+              runtime?.state === "running"
+                ? "运行中"
+                : runtime?.state === "error"
+                  ? "失败"
+                  : runtime?.state === "success"
+                    ? "成功"
+                    : "";
+            const title = [
+              tool,
+              runtime?.calls ? `调用 ${runtime.calls} 次` : "",
+              runtime?.lastDurationMs !== null && runtime?.lastDurationMs !== undefined
+                ? `最近 ${formatMcpDuration(runtime.lastDurationMs)}`
+                : "",
+              runtime?.lastError || "",
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return `<span class="mcp-tool ${escapeHtml(runtime?.state || "")}" title="${escapeHtml(title)}">${escapeHtml(tool)}${
+              runtimeLabel ? `<span class="mcp-tool-state">${runtimeLabel}</span>` : ""
+            }</span>`;
+          })
           .join("")}${hiddenCount ? `<span class="mcp-tool more">+${hiddenCount}</span>` : ""}</div>`;
       })()
     : "";
+  const runtimeValues = Object.values(toolRuntime);
+  const runtimeCalls = runtimeValues.reduce((total, runtime) => total + (runtime?.calls || 0), 0);
+  const runtimeFailures = runtimeValues.filter((runtime) => runtime?.state === "error").length;
+  const runtimeRunning = runtimeValues.filter((runtime) => runtime?.state === "running").length;
+  const runtimeNote = runtimeCalls
+    ? `<div class="mcp-tool-runtime">本次运行：${runtimeCalls} 次调用${
+        runtimeFailures ? ` · ${runtimeFailures} 个失败` : ""
+      }${runtimeRunning ? ` · ${runtimeRunning} 个运行中` : ""}</div>`
+    : "";
   const tone =
     report.state === "connected" ? "ok" : report.state === "starting" || report.state === "connecting" ? "idle" : "warn";
-  return `<div class="mcp-status ${tone}" data-mcp-status="${escapeHtml(server.name)}">${escapeHtml(state)}${detail}${tools}</div>`;
+  return `<div class="mcp-status ${tone}" data-mcp-status="${escapeHtml(server.name)}">${escapeHtml(state)}${detail}${tools}${runtimeNote}</div>`;
+}
+
+function formatMcpDuration(value) {
+  const ms = Number(value);
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  if (ms < 1_000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1_000).toFixed(1)}s`;
+}
+
+function updateMcpToolRuntime(change) {
+  if (kind !== "mcp" || !mcpStatus || !change?.server || !change?.tool) return;
+  const report = mcpStatus.servers?.find((server) => server.name === change.server);
+  if (!report) return;
+  report.toolRuntime = {
+    ...(report.toolRuntime && typeof report.toolRuntime === "object" ? report.toolRuntime : {}),
+    [change.tool]: {
+      server: change.server,
+      tool: change.tool,
+      state: change.state,
+      calls: change.calls,
+      lastStartedAt: change.lastStartedAt,
+      lastFinishedAt: change.lastFinishedAt,
+      lastDurationMs: change.lastDurationMs,
+      lastError: change.lastError,
+    },
+  };
+  updateMcpLiveStatus(mcpStatus);
 }
 
 function mcpRuntimeActionsHtml(server, status) {
@@ -3410,6 +3475,7 @@ function treeNodesHtml(nodes, depth = 0) {
           ${
             entryId
               ? `<div class="tree-node-actions">
+                   <button class="text-button" data-tree-navigate="${escapeHtml(entryId)}" type="button">切换到此节点</button>
                    <button class="text-button" data-tree-fork="${escapeHtml(entryId)}" type="button">从此分支</button>
                    <button class="text-button" data-tree-copy="${escapeHtml(`${label}${preview}`)}" type="button">复制</button>
                    <button class="text-button" data-tree-label="${escapeHtml(entryId)}" data-tree-label-name="${escapeHtml(node.label || "")}" type="button">标记</button>
@@ -3423,6 +3489,31 @@ function treeNodesHtml(nodes, depth = 0) {
 }
 
 function bindTreeActions() {
+  document.querySelectorAll("[data-tree-navigate]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!window.confirm("切换到这个节点继续？当前分支不会被删除，原会话仍保留。")) return;
+      button.disabled = true;
+      try {
+        const response = await API.navigateSessionTree(button.dataset.treeNavigate);
+        if (!response?.success) throw new Error(response?.error || "切换节点失败");
+        if (response.data?.cancelled) {
+          showMessage("扩展取消了这次切换");
+          button.disabled = false;
+          return;
+        }
+        $("ruleDialog").close();
+        await load();
+        showMessage(
+          response.data?.editorText
+            ? "已切换到此节点；输入框为空时会恢复该节点原消息"
+            : "已切换到此节点，原分支仍保留",
+        );
+      } catch (error) {
+        showMessage(agentErrorMessage(error.message, "切换节点失败"), true);
+        button.disabled = false;
+      }
+    });
+  });
   document.querySelectorAll("[data-tree-fork]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!window.confirm("从这条节点创建新分支？原会话会保留。")) return;
@@ -3920,5 +4011,6 @@ document.addEventListener("keydown", (event) => {
 bindStaticEvents();
 API.onEvent((event) => {
   if (event?.type === "mcp_status_changed" && event.status) updateMcpLiveStatus(event.status);
+  if (event?.type === "mcp_tool_runtime_changed") updateMcpToolRuntime(event);
 });
 load();

@@ -10,6 +10,7 @@
     "main.cjs",
     "preload.cjs",
     "mcp-catalog.cjs",
+    "mcp-tool-runtime.cjs",
     "slash-helpers.cjs",
     "doctor-report.cjs",
     "packaged-runtime.cjs",

@@ -397,6 +397,23 @@ export class RpcClient {
 	}
 
 	/**
+	 * Move the current leaf to another node in the same session file.
+	 * @returns Editor text to restore when the target is a user message, plus cancellation flags
+	 */
+	async navigateTree(
+		targetId: string,
+		options: {
+			summarize?: boolean;
+			customInstructions?: string;
+			replaceInstructions?: boolean;
+			label?: string;
+		} = {},
+	): Promise<{ editorText?: string; cancelled: boolean; aborted?: boolean; summaryEntryId?: string }> {
+		const response = await this.send({ type: "navigate_tree", targetId, ...options });
+		return this.getData(response);
+	}
+
+	/**
 	 * Clone the current active branch into a new session.
 	 * @returns Object with `cancelled: true` if an extension cancelled the clone
 	 */

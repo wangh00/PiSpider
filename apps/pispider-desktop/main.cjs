@@ -29,6 +29,8 @@ const {
   preserveManagedCatalogMetadata,
 } = require("./mcp-catalog.cjs");
 
+const { createMcpToolRuntimeTracker } = require("./mcp-tool-runtime.cjs");
+
 const {
   validateHtmlExportPath,
   changelogCandidates,
@@ -67,6 +69,7 @@ let quitting = false;
 let shareInFlight = false;
 const panelWindows = new Map();
 let activeOAuthLogin = null;
+const mcpToolRuntime = createMcpToolRuntimeTracker();
 
 const DIAGNOSTIC_LOG_LIMIT = 400;
 const DIAGNOSTIC_LOG_MAX_CHARS = 200_000;
@@ -1013,7 +1016,7 @@ async function readLiveMcpStatus() {
   try {
     const response = await agent.call("mcp_status", {}, 5_000);
     if (!response?.success) return null;
-    return response.data && typeof response.data === "object" ? response.data : null;
+    return mcpToolRuntime.decorate(response.data && typeof response.data === "object" ? response.data : null);
   } catch {
     return null;
   }
@@ -3353,6 +3356,7 @@ class AgentProcess {
     assertRunner();
 
     this.setStatus("starting", "Starting PiSpider runtime");
+    mcpToolRuntime.reset();
     this.ready = false;
     this.capabilities = { commands: [], checkedAt: null };
     this.readyPromise = new Promise((resolve) => {
@@ -3475,9 +3479,28 @@ class AgentProcess {
       if (record.type === "session_start" || record.type === "agent_settled") {
         this.rememberCurrentSessionSoon();
       }
-      send("agent:event", record);
+      const toolRuntimeChange = mcpToolRuntime.handleEvent(record);
+      if (toolRuntimeChange) {
+        sendToPanel("mcp", "agent:event", {
+          type: "mcp_tool_runtime_changed",
+          ...toolRuntimeChange,
+        });
+      }
+      if (record.type === "agent_settled") {
+        for (const change of mcpToolRuntime.settle()) {
+          sendToPanel("mcp", "agent:event", {
+            type: "mcp_tool_runtime_changed",
+            ...change,
+          });
+        }
+      }
+      const outbound =
+        record.type === "mcp_status_changed" && record.status
+          ? { ...record, status: mcpToolRuntime.decorate(record.status) }
+          : record;
+      send("agent:event", outbound);
       // The MCP panel listens for live status changes; its window is separate from the main one.
-      if (record.type === "mcp_status_changed") sendToPanel("mcp", "agent:event", record);
+      if (record.type === "mcp_status_changed") sendToPanel("mcp", "agent:event", outbound);
     }
   }
 
@@ -4036,6 +4059,19 @@ ipcMain.handle("agent:fork", async (_event, entryId) => {
   }
   const response = await ensureAgent().call("fork", { entryId: value }, 60_000);
   if (response?.success) send("sessions:changed", { reason: "fork" });
+  return response;
+});
+ipcMain.handle("agent:navigate-tree", async (_event, entryId) => {
+  const value = String(entryId || "").trim();
+  if (!value) {
+    return { type: "response", command: "navigate_tree", success: false, error: "缺少树节点 entryId" };
+  }
+  const response = await ensureAgent().call("navigate_tree", { targetId: value }, 60_000);
+  if (response?.success) {
+    send("sessions:changed", { reason: "navigate" });
+    const editorText = String(response.data?.editorText || "");
+    if (editorText) send("composer:set-draft", { text: editorText });
+  }
   return response;
 });
 ipcMain.handle("agent:clone", async () => {

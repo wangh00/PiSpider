@@ -6774,8 +6774,21 @@ function bindEvents() {
   window.pispider.onResourcesChanged(() => {
     refreshResources();
   });
-  window.pispider.onSessionsChanged(() => {
+  window.pispider.onSessionsChanged((payload) => {
     refreshSessions();
+    if (payload?.reason === "navigate") refreshFromAgent();
+  });
+  window.pispider.onComposerDraft?.((payload) => {
+    const text = String(payload?.text || "");
+    if (!text) return;
+    const input = $("promptInput");
+    if (input.value.trim()) {
+      showToast("已切换节点；输入框已有草稿，未覆盖原消息", "warning");
+      return;
+    }
+    input.value = text;
+    input.focus();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   });
   window.pispider.onMcpCommandState?.((payload) => {
     handleMcpCommandState(payload);

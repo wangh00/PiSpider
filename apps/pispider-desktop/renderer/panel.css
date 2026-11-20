@@ -716,6 +716,35 @@ a:focus-visible {
   color: var(--accent-strong);
 }
 
+.mcp-tool.running {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.mcp-tool.success {
+  border-color: color-mix(in srgb, var(--success) 30%, var(--border));
+}
+
+.mcp-tool.error {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.mcp-tool-state {
+  margin-left: 5px;
+  font-family: var(--font-ui);
+  opacity: 0.78;
+}
+
+.mcp-tool-runtime {
+  margin-top: 6px;
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 .mcp-tool-list {
   display: flex;
   max-height: 210px;

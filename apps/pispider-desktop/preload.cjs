@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld("pispider", {
   forkMessages: () => ipcRenderer.invoke("agent:fork-messages"),
   rewindSession: (mode) => ipcRenderer.invoke("agent:rewind", mode),
   forkSession: (entryId) => ipcRenderer.invoke("agent:fork", entryId),
+  navigateSessionTree: (entryId) => ipcRenderer.invoke("agent:navigate-tree", entryId),
   cloneSession: () => ipcRenderer.invoke("agent:clone"),
   getSessionTree: () => ipcRenderer.invoke("agent:session-tree"),
   exportSessionHtml: (outputPath) => ipcRenderer.invoke("agent:export-html", outputPath),
@@ -188,6 +189,11 @@ contextBridge.exposeInMainWorld("pispider", {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("mcp:command-state", listener);
     return () => ipcRenderer.removeListener("mcp:command-state", listener);
+  },
+  onComposerDraft: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("composer:set-draft", listener);
+    return () => ipcRenderer.removeListener("composer:set-draft", listener);
   },
   onAgentReloaded: (callback) => {
     const listener = (_event, payload) => callback(payload);
