@@ -107,18 +107,20 @@ Electron 的主进程会调用 `node scripts/run-pispider.mjs --mode rpc`，所�
 
 ## 打包（Windows）
 
-桌面端 Windows 安装包由 electron-builder 26.18.0 构建，目标为 NSIS（非 oneClick、perMachine=false）。
+桌面端 Windows 包由 electron-builder 26.18.0 构建，目标为 NSIS（非 oneClick、perMachine=false）与 portable 单文件。
 
 ```powershell
 cd apps/pispider-desktop
-npm run dist:win
+npm run dist:win                 # 同时构建 NSIS 与 portable
+npm run dist:win:portable        # 只构建 portable
 ```
 
-`dist:win` 先跑 `prepare:packaged` 幂等重建 `build/packaged/` staging（launcher closure + core runtime 缓存副本 + npm 10.9.8 CLI，自检通过才退出），再执行 `electron-builder --win`；staging 可随时由 `dist:win` 重新生成，无需手工保留。构建机必须使用 npm 10.9.8；版本不符时 staging 直接失败。首次构建会把 nsis / winCodeSign 下载到 electron-builder 本地工具缓存，属正常工具缓存。
+`dist:win` 先跑 `prepare:packaged` 幂等重建 `build/packaged/` staging（launcher closure + core runtime 缓存副本 + npm 10.9.8 CLI，自检通过才退出），再执行 `electron-builder --win`；staging 可随时由 `dist:win` 重新生成，无需手工保留。构建机必须使用 npm 10.9.8；版本不符时 staging 直接失败。首次构建会把 nsis / winCodeSign 下载到 electron-builder 本地工具缓存，属正常工具缓存。`dist:win:portable` 复用同一 staging，只替换 electron-builder 的 target。
 
 产物落在 `apps/pispider-desktop/release/`：
 
 - `PiSpider Setup <version>.exe`：NSIS 安装包；
+- `PiSpider Portable <version>.exe`：portable 单文件；运行时自解压到 `%TEMP%` 再启动，首次启动需要等待解包完成；
 - `win-unpacked/`：解包后的可运行目录，`PiSpider.exe` 为入口。
 
 随包 `resources/` 布局：
@@ -148,7 +150,7 @@ MCP 与离线降级：
 - stdio 预置 MCP 懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`；安装优先用 `resources/npm/bin/npm-cli.js`，由 `PiSpider.exe` 加 `ELECTRON_RUN_AS_NODE=1` 执行，其次回退系统 PATH npm；两者都缺失时，目录与命令列表走可读的中文降级提示，不报错崩溃。
 - 打包实例与 dev 实例共享 `PISPIDER_HOME/agent` 下的会话与配置；Electron userData profile 按 productName 隔离，localStorage / 主题互不影响。
 
-尚未做：可执行文件与安装包代码签名、electron-updater 自动更新、macOS / Linux 目标、portable 单文件目标。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。升级随包 core 用 `npm run pispider:core-version -- <x.y.z>` 同步三处 `CORE_VERSION`，根 `npm run check` 与 `npm run pispider:check` 会校验一致性。
+尚未做：可执行文件与安装包代码签名、electron-updater 自动更新、macOS / Linux 目标。portable 单文件已构建并做过隔离 home + CDP 只读启动冒烟；NSIS 安装流程尚未执行安装实测。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。升级随包 core 用 `npm run pispider:core-version -- <x.y.z>` 同步三处 `CORE_VERSION`，根 `npm run check` 与 `npm run pispider:check` 会校验一致性。
 
 ## 3. 使用本仓库构建的 Pi
 

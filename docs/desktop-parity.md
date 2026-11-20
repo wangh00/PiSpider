@@ -60,7 +60,7 @@
 | 扩展（extension）加载 / 管理 | 左栏 → 扩展 | 已接 | 列出用户级 `agent/extensions`、项目级 `.pi/extensions` 自动发现文件、`settings.json` 显式路径和 4 个内置扩展；显示启用 / 停用 / 待项目信任 / 文件缺失状态；启停写入 `+path` / `-path` / `-builtin:<name>`，重载 Agent 后生效 |
 | Pi package 安装 / 列表 / 移除 / 更新 / 过滤 | 左栏 → 扩展 → Pi packages | 已接 | 读取用户级 / 项目级 `settings.json.packages`，显示 source、scope、安装状态、版本、过滤条件；安装、更新、移除通过 Pi core CLI 执行，项目级写入 `.pi/settings.json`；不替代 `pi list` 的完整诊断输出 |
 | 提示模板（prompt template） | 设置 → 提示模板 | 已接 | 用户级 `agent/prompts` 与项目级 `.pi/prompts`；列表、新建、编辑、删除（带备份）；模板以 `/name` 出现在命令面板，重载 Agent 后生效 |
-| 自定义主题文件 | 只有浅色 / 深色切换 | 部分 | 没有主题目录、主题选择和导入 |
+| 自定义主题文件 | 设置 → 外观主题 | 已接（导入） | 支持导入 JSON 主题（亮 / 暗两套颜色 palette），导入后同步主窗口 / 二次窗口并写入 `desktop.json.customTheme`；可恢复内置黑白主题。没有主题目录、主题选择器或内置主题库；字体、圆角、阴影、动效不在主题文件范围 |
 | 项目信任 / `.pi` 资源加载确认 | 设置窗口 → 项目信任 | 已接 | 切换“不加载 / 信任当前项目”，runtime 重载时带 `--no-approve` / `--approve` |
 | 扩展 UI（确认 / 输入 / 编辑器 / 选择） | 主窗口对话框 | 部分 | `confirm` / `input` / `editor` / `select` 已桥接，`notify` / `setStatus` / `setWidget` / `set_editor_text` 已接；`custom` 和 TUI 专属 UI 在 RPC 模式不可用 |
 
@@ -125,7 +125,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 | --- | --- | --- | --- |
 | Pi 高级 settings | 设置 → 高级设置卡：transport、HTTP proxy、shell path、defaultTools、compaction 开关与 token 参数 | 已接 | 写用户级 `settings.json`，保存后重启 Agent；compaction `modelOverrides` 原样保留；项目级 `.pi/settings.json` 仍可能覆盖 |
 | doctor / 诊断日志 | 状态 → 环境诊断 | 部分 | 通过 Pi core CLI 检查版本、当前 provider / model 的认证状态、`pi list` 的 package 声明，并汇总 Node / Electron、配置文件、项目资源与权限；“导出诊断”写脱敏文本报告，含应用信息、环境诊断和最近运行时日志；仍不提供网络诊断或 `pi doctor` 的完整检查项 |
-| Pi / 包更新 | 无 | 部分 | Windows x64 NSIS 安装包 `PiSpider Setup <version>.exe` 已由 electron-builder 26.18.0 构建产出（非 oneClick、perMachine=false），安装流程本身尚未执行安装冒烟；`win-unpacked/PiSpider.exe` 经最小 PATH + CDP 只读冒烟验证；应用图标接入 `build/icon.ico`。未做：代码签名、自动更新、macOS / Linux 目标、portable 单文件目标；Pi / 包自身更新仍无入口 |
+| Pi / 包更新 | 无 | 部分 | Windows x64 由 electron-builder 26.18.0 产出 NSIS 安装包 `PiSpider Setup <version>.exe`（非 oneClick、perMachine=false）与 portable 单文件 `PiSpider Portable <version>.exe`；`win-unpacked/PiSpider.exe` 与 portable 均经隔离 `PISPIDER_HOME` + CDP 只读冒烟验证；应用图标接入 `build/icon.ico`。未做：代码签名、自动更新、macOS / Linux 目标；NSIS 安装流程仍未执行安装冒烟，portable 首次启动需等待自解压 |
 | print / JSON / RPC / SDK 模式 | 不适用 | 不适用 | 桌面本身通过 RPC 驱动 runtime，不需要给用户暴露这些 CLI 输出模式 |
 | TUI 键位 / terminal 配置 | 不适用 | 不适用 | 桌面使用自己的快捷键，不复制终端 TUI |
 
@@ -168,9 +168,9 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 
 **P2：打磨与外部分发**
 
-1. 动效统一、自定义主题导入：桌面可独立做。
+1. 动效统一、自定义主题导入：已完成（2026-11-20）。自定义主题由设置页导入 JSON，支持亮 / 暗两套颜色 palette，只允许 22 个 `tokens.css` 颜色变量；导入后立即同步主窗口与二次窗口并持久化 `desktop.json.customTheme`，可一键恢复内置主题。两套 CSS 的硬编码动效时长与缓动曲线已收口到 `--motion-*` / `--ease-*` token。
 2. 代码签名与自动更新：阻塞于外部证书 / publish 服务。
-3. macOS / Linux 包与 portable 单文件目标：需对应平台构建环境；桌面可独立做（环境依赖）。
+3. macOS / Linux 包与 portable 单文件目标：Windows x64 portable 单文件已完成（2026-11-20），已用隔离 home + CDP 只读冒烟；Linux / macOS 仍需对应平台构建环境，未开始。
 
 排序理由：P0 = 数据安全 + 高频核心体验正确性；P1 = 功能完整性与打包可维护性；P2 = 视觉打磨与对外分发基础设施。
 

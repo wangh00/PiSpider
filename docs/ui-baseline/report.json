@@ -1,0 +1,65 @@
+{
+  "generator": "apps/pispider-desktop/test/ui-baseline.cjs",
+  "scenarios": [
+    {
+      "name": "theme-card-builtin-light",
+      "mode": "light",
+      "theme": "builtin",
+      "width": 1060,
+      "height": 760,
+      "swatches": 0,
+      "nameText": "内置黑白主题",
+      "cardWidth": 1012,
+      "cardHeight": 173.515625,
+      "file": "theme-card-builtin-light.png"
+    },
+    {
+      "name": "theme-card-builtin-dark",
+      "mode": "dark",
+      "theme": "builtin",
+      "width": 1060,
+      "height": 760,
+      "swatches": 0,
+      "nameText": "内置黑白主题",
+      "cardWidth": 1012,
+      "cardHeight": 173.515625,
+      "file": "theme-card-builtin-dark.png"
+    },
+    {
+      "name": "theme-card-custom-light",
+      "mode": "light",
+      "theme": "测试灰绿",
+      "width": 1060,
+      "height": 760,
+      "swatches": 2,
+      "nameText": "测试灰绿",
+      "cardWidth": 1012,
+      "cardHeight": 241.515625,
+      "file": "theme-card-custom-light.png"
+    },
+    {
+      "name": "theme-card-custom-dark",
+      "mode": "dark",
+      "theme": "测试灰绿",
+      "width": 1060,
+      "height": 760,
+      "swatches": 2,
+      "nameText": "测试灰绿",
+      "cardWidth": 1012,
+      "cardHeight": 241.515625,
+      "file": "theme-card-custom-dark.png"
+    },
+    {
+      "name": "theme-card-custom-narrow",
+      "mode": "dark",
+      "theme": "测试灰绿",
+      "width": 360,
+      "height": 760,
+      "swatches": 2,
+      "nameText": "测试灰绿",
+      "cardWidth": 312,
+      "cardHeight": 352.703125,
+      "file": "theme-card-custom-narrow.png"
+    }
+  ]
+}

@@ -354,7 +354,7 @@ npm run pispider:desktop
 
 **P2：打磨与外部分发**
 
-12. 动效统一、自定义主题导入：桌面可独立做。
+12. 动效统一、自定义主题导入：已完成（2026-11-20；见 §17）。
 13. 代码签名与自动更新：外部阻塞（证书 / publish 服务）。
 14. macOS / Linux 包与 portable 单文件目标：需对应平台构建环境。
 
@@ -761,3 +761,120 @@ npm run pispider:desktop
 - P1-8b 的服务器声明工具健康态仍缺上游字段；当前 `toolRuntime` 只记录本 runtime 观察到的调用，runtime 重启后清空，不跨会话持久化。MCP 协议本身只有 `tools/list` 与调用，没有工具健康检查接口。
 - 工具 chip 仍只展示前 10 个工具；隐藏工具的 `toolRuntime` 会进入摘要计数，但不会单独显示 chip。
 
+## 17. 自定义主题与动效统一（2026-11-20）
+
+### 目标
+
+- P2-12：桌面独立完成视觉打磨，不依赖证书 / publish 服务或 macOS / Linux 构建环境。
+- 自定义主题只覆盖 `tokens.css` 的颜色 token，不开放字体、圆角、阴影、动效，避免导入文件改变布局或注入任意 CSS。
+- 动效时长与缓动曲线从两套 CSS 的散落硬编码收口到 `tokens.css` 的 `--motion-*` / `--ease-*`。
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/theme-store.cjs` | 新增主题 JSON 校验 / 归一化：22 个颜色变量 allowlist、键名 `bg` / `chatBg` / `panelSoft` 与 `--bg` / `--chat-bg` / `--panel-soft` 互转、hex / rgb / rgba / hsl / hsla / transparent 颜色白名单、亮 / 暗双 palette、`defaultMode` 推导、64 KB 上限；导出 `normalizeCustomTheme` / `themeVariablesForMode` / `THEME_VARIABLES` |
+| `apps/pispider-desktop/main.cjs` | 启动时读取并校验 `desktop.json.customTheme`；新增 `broadcastCustomTheme()` 与 `setThemeMode()`；IPC `theme:get` / `theme:import` / `theme:reset`；`theme:import` 打开 JSON 文件框、校验、写配置、按 `defaultMode` 切模式并广播；`theme:reset` 删除字段并广播；所有失败返回 `{ok:false,error}`；文件框父窗口取发起 IPC 的窗口 |
+| `apps/pispider-desktop/preload.cjs` | 暴露 `getTheme()` / `importTheme()` / `resetTheme()` / `onCustomTheme()` |
+| `apps/pispider-desktop/renderer/theme.js` | 新增共享应用脚本：先移除 allowlist 内的旧内联变量，再按当前模式写入 `theme.colors[mode]` |
+| `apps/pispider-desktop/renderer/app.js` | 主窗口新增 `state.customTheme`、`applyCustomTheme()`、`setThemeAppearance()`、`applyThemeFromMain()`、`loadCustomTheme()`；监听 `theme:changed` / `theme:custom-changed`，收到主进程事件时不再反向调用 `setTheme` |
+| `apps/pispider-desktop/renderer/panel.js` | 二次窗口启动时读取主题，三条路径（`onTheme` / `onCustomTheme` / `getTheme`）都应用当前模式 palette；设置页新增“外观主题”卡、亮 / 暗预览色块、导入 / 恢复按钮与处理函数 |
+| `apps/pispider-desktop/renderer/panel.css` | 新增 `.theme-summary` / `.theme-name` / `.theme-modes` / `.theme-swatches` / `.theme-swatch` |
+| `apps/pispider-desktop/renderer/index.html` / `panel.html` | 在主脚本前引入 `theme.js` |
+| `apps/pispider-desktop/renderer/styles.css` / `panel.css` | 120–240ms 过渡与动画时长、散落的 `cubic-bezier(0.2, 0.8, 0.2, 1)` 全部替换为 `var(--motion-fast/base/panel)` / `var(--ease-soft)`；保留 30–70ms 编排延迟与 reduced-motion 的 1ms |
+| `apps/pispider-desktop/package.json` | `files` 加入 `theme-store.cjs` |
+| `apps/pispider-desktop/test/theme-store.test.mjs` | 6 项单测：键名归一化与双 palette、唯一模式推导、显式 mode 仅在对应 palette 存在时生效、非法变量 / 颜色、畸形文档、按模式取变量 |
+
+### 行为
+
+- 主题格式：`{ "name": "...", "mode"?: "light" | "dark", "colors": { "light": {...}, "dark": {...} } }`；至少一个模式、每个模式至少一个颜色。
+- 允许变量：`--bg`、`--chat-bg`、`--panel`、`--sidebar`、`--panel-soft`、`--text`、`--text-soft`、`--muted`、`--muted-2`、`--border`、`--border-soft`、`--hairline`、`--accent`、`--accent-strong`、`--accent-soft`、`--accent-contrast`、`--danger`、`--danger-soft`、`--success`、`--warning`、`--code-bg`、`--scrim`。
+- `defaultMode` 优先取显式 `mode`（且对应 palette 存在），否则取唯一存在的模式；两套 palette 且未写 `mode` 时保持当前模式。
+- 导入成功写入 `desktop.json.customTheme`，立即广播到主窗口与所有二次窗口；重启后从同一字段恢复。恢复内置主题只删除该字段，保留 `zoomFactor` / `lastSessionPath` / `sessionOrder` 等其他配置。
+- 主窗口切主题会通过 `theme:set` 同步 `nativeTheme.themeSource`、标题栏色和所有窗口；二次窗口只应用 DOM palette，不回写主进程。
+
+### 验证（真实桌面实例，CDP 9348）
+
+- `node --test apps/pispider-desktop/test/theme-store.test.mjs`：6/6 通过。
+- 主题相关 `node --check`：`main.cjs`、`preload.cjs`、`theme-store.cjs`、`renderer/theme.js`、`renderer/app.js`、`renderer/panel.js` 全部通过。
+- 持久化与启动读取：先退出旧实例并备份 `C:\Users\Admin\.pispider\agent\desktop.json`，注入“测试灰绿”主题（亮色 `--bg #eef3ef` / `--text #17251b` / `--accent #245c3e`，暗色 `--bg #101713` / `--text #e4eee7` / `--accent #b8d8c2`），重启后主窗口 `state.theme="light"`、`state.customTheme.name="测试灰绿"`，7 个内联变量计算值正确。
+- 双窗口同步：设置窗口 `data-theme="light"`、`--bg=#eef3ef`、`--accent=#245c3e`；主题卡文本为“外观主题 / 测试灰绿 / 亮色 · 暗色 / Aa 亮色 / Aa 暗色 / 导入主题文件 / 恢复内置主题”，`.theme-swatch=2`。主窗口切暗色后两窗口均为 `--bg=#101713`、`--accent=#b8d8c2`。
+- 恢复内置主题：点击设置页“恢复内置主题”后，设置窗口卡片变为“内置黑白主题 / 亮色 / 暗色”，`.theme-swatch=0`，`--bg=#121212`、`--accent=#ffffff`；主窗口 `state.customTheme=null` 且计算值一致；`desktop.json` 已删除 `customTheme`，`zoomFactor=1`、`lastSessionPath` 保留。
+- 动效 token：`styles.css` / `panel.css` 中已无 120–240ms 硬编码时长（除 30–70ms 编排延迟和 reduced-motion 的 1ms）；`panel-enter` / `sidebar-in` 仍为 `var(--motion-panel)`。
+- 未实测：系统文件选择框的“点击导入 → 选文件”路径无法在 CDP 自动化中稳定选定文件；已确认点击后原生文件框正常打开（顶层窗口标题“导入 PiSpider 主题”），解析、应用、持久化与清除由单测 + 配置注入 + 恢复流程覆盖。
+
+### 自动化检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0（2575 文件，无修复；含 CORE_VERSION 检查） |
+| 2 | `npm run pispider:check` | exit 0 |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `cd apps/pispider-desktop; npm test` | 58/58 pass |
+| 5 | `node --test scripts/pispider-launcher.test.mjs scripts/pispider-migrate.test.mjs` | 14/14 pass |
+
+### 遗留
+
+- 系统文件选择框流程尚未自动化实选；导入按钮打开原生对话框、选文件、写入链路需要一次人工点击确认。
+- 自定义主题只覆盖颜色；字体、圆角、阴影、动效仍由 `tokens.css` 固定。若要支持完整主题包，需要扩展 allowlist 并在渲染层做布局回归。
+- `main.cjs` 在启动时校验失败会把内存态清空，但不会自动清理 `desktop.json` 里的非法 `customTheme`；下一次导入或恢复才会覆盖 / 删除。
+- 动效 token 统一只覆盖 CSS；渲染层 JS 编排延迟（30–70ms）与虚拟滚动去抖（120ms / 280ms / 600ms）不在 `--motion-*` 范围。
+
+## 18. Windows portable 与 UI 截图基线（2026-11-20）
+
+### 目标
+
+- P2-14 先做当前 Windows 环境可闭环的部分：electron-builder portable 单文件；Linux / macOS 因缺对应构建环境暂不开始。
+- 补 UI 组件级测试与截图基线，降低主题卡等渲染代码的回归成本。
+- P2-13 代码签名与 electron-updater 继续搁置，portable 仍为未签名产物。
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/electron-builder.yml` | `win.target` 从 `nsis` 改为 `[nsis, portable]`；新增 `portable.artifactName: "PiSpider Portable ${version}.exe"`；`files` 补入 `mcp-tool-runtime.cjs`、`theme-store.cjs` |
+| `apps/pispider-desktop/package.json` | 新增 `dist:win:portable`（`prepare:packaged` + `electron-builder --win portable`）与 `ui:baseline`（`electron test/ui-baseline.cjs`） |
+| `apps/pispider-desktop/renderer/theme-card.js` | 新增主题卡 HTML 组件；同一文件同时导出 Node `module.exports.html` 与浏览器 `window.PiSpiderThemeCard.html`，内置 `escapeHtml` |
+| `apps/pispider-desktop/renderer/panel.js` | `themeSettingsCardHtml()` 改为调用 `window.PiSpiderThemeCard.html(theme)` |
+| `apps/pispider-desktop/renderer/panel.html` | 在 `theme.js` 之后、`panel.js` 之前加载 `theme-card.js` |
+| `apps/pispider-desktop/test/theme-card.test.mjs` | 4 项 HTML 单测 |
+| `apps/pispider-desktop/test/package-files.test.mjs` | 读取 `main.cjs` 所有 `require("./*.cjs")`，断言每个本地 helper 都在 `electron-builder.yml.files` 中 |
+| `apps/pispider-desktop/test/ui-gallery.html` | 使用真实 `tokens.css` / `panel.css` / `theme.js` / `theme-card.js` 的主题卡 fixture |
+| `apps/pispider-desktop/test/ui-baseline.cjs` | Electron 截图生成器，1060×760、`show: true`，5 个场景 |
+| `docs/ui-baseline/` | 5 张 PNG、`report.json`、`README.md` |
+
+### Portable 行为
+
+- `PiSpider Portable <version>.exe` 是自解压包装：启动后先解压到 `%TEMP%` 下临时目录，再拉起解包后的 `PiSpider.exe`；解包完成前 CDP 端口不会监听。
+- 本次冷启动从 18:24:55 开始，约 18:25:47 才出现主进程，首次解包耗时约 50 秒；10 秒时检查会误判为“未启动”，属正常时延，不是启动失败。
+- 应用本体沿用同一份 `resources/app.asar`、随包 launcher / core / npm；portable 只是外层包装，不改变 `PISPIDER_HOME`、单实例或数据目录语义。
+- 构建产物未签名；Windows 可能显示“未知发布者”或被 SmartScreen 拦截，属于 P2-13 范围。
+
+### 验证
+
+- 构建：`npm run dist:win --workspace apps/pispider-desktop` 退出码 0，日志包含 `building target=nsis`、`building target=portable`；各签名步骤均输出 `no code signing certificate configured, signing is skipped`。
+- 产物：`PiSpider Setup 0.1.0.exe` 156,389,411 字节，SHA256 `89109E20C536E803CC9AD5C6F99E6D9450C757E74DB27103B8FFD0D4AC5E1BCD`；`PiSpider Portable 0.1.0.exe` 129,586,621 字节，SHA256 `3954C025B9422C73C48BE9858F0E17EAD0AD165FCB8B182D5A99160112D22CA7`。
+- 打包内容：`npx asar list release/win-unpacked/resources/app.asar` 含 `\mcp-tool-runtime.cjs`、`\theme-store.cjs`、`\renderer\theme-card.js`、`\renderer\theme.js`、`\renderer\panel.html`。
+- Portable 启动冒烟：使用隔离 `PISPIDER_HOME=E:\mygit\SpiderBuddy\.artifacts\portable-home`、`--remote-debugging-port=9351`；约 50 秒后 CDP 返回 `page / PiSpider` 与 `webview / about:blank`，主窗口标题 `PiSpider`，确认 7 个 `PiSpider` 子进程。
+- Portable 设置窗口：CDP 打开 `settings` 后页面标题 `PiSpider · 设置`，`getTheme()` 返回 `{ ok: true, customTheme: null }`，`.theme-card` 存在、`.theme-swatch` 为 0，说明 `theme-card.js` 在打包产物内正常加载。
+- `win-unpacked/PiSpider.exe` 同样直接启动并返回 CDP 页面（9352），说明 asar 与 helper 修复有效；portable 此前的失败是检查过早，不是包装不可用。
+- UI 基线：`npm run ui:baseline` 生成 `theme-card-builtin-light.png`、`theme-card-builtin-dark.png`、`theme-card-custom-light.png`、`theme-card-custom-dark.png`、`theme-card-custom-narrow.png`；`report.json` 记录内置卡 1012×173.52 / 0 色块、自定义卡 1012×241.52 / 2 色块、窄宽卡 312×352.70 / 2 色块，均无横向溢出。
+- 组件测试：`theme-card.test.mjs` 4/4、`package-files.test.mjs` 1/1；完整 `npm test --workspace apps/pispider-desktop` 63/63 通过。
+
+### 自动化检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0（2575 文件，无修复；含 CORE_VERSION 检查） |
+| 2 | `npm run pispider:check` | exit 0 |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `cd apps/pispider-desktop; npm test` | 63/63 pass |
+| 5 | `node --test scripts/pispider-launcher.test.mjs scripts/pispider-migrate.test.mjs` | 14/14 pass |
+| 6 | `npm run ui:baseline` | 5 张 PNG + report.json，人工查看通过 |
+
+### 遗留
+
+- NSIS 安装包只完成构建，未执行安装 / 卸载流程实测；portable 首次启动需等待自解压，尚未做进度提示。
+- 代码签名、SmartScreen 信誉、electron-updater 自动更新仍阻塞于证书 / publish 服务（P2-13）。
+- Linux（AppImage / deb）与 macOS（dmg / zip、Developer ID / 公证）缺对应构建环境，未开始。
+- 截图基线目前覆盖主题卡；消息列表、二次窗口整页等更大范围基线尚未建立。

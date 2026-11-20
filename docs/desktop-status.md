@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | 内置斜杠命令 | 24 个内置命令在发送前于桌面层本地拦截执行，支持带参形式与来源徽标；扩展 / 模板 / 技能命令数据来自 RPC `get_commands`，仍走 prompt 执行 | [commands.md](commands.md)「桌面内置斜杠命令」；[desktop-parity.md](desktop-parity.md) §5.1 |
 | 黑白灰阶 UI | 亮 / 暗双主题；1px hairline 边框（亮 `rgba(0,0,0,0.06)`、暗 `rgba(255,255,255,0.08)`）；炭黑 / 雪白主按钮；辅助信息 11px、opacity 0.45；主窗口与二次窗口共用 `renderer/tokens.css` | [desktop-ui.md](desktop-ui.md) §4.2；截图目录 `docs/ui-refresh-2026-11-19/`（21 张，dark 11 / light 10） |
-| Windows 打包 | electron-builder 26.18.0 精确锁版；NSIS 安装包 `PiSpider Setup 0.1.0.exe` 与 `win-unpacked/` 便携版；随包 launcher + core 1.5.2 runtime；三处 Agent 子进程 spawn 用 Electron 二进制 + `ELECTRON_RUN_AS_NODE=1`；最小 PATH（无系统 Node）冒烟 RPC ready；stdio MCP 读不到 npm CLI 时走中文降级 | [development.md](development.md)「打包（Windows）」 |
+| Windows 打包 | electron-builder 26.18.0 精确锁版；NSIS 安装包 `PiSpider Setup 0.1.0.exe`、portable 单文件 `PiSpider Portable 0.1.0.exe` 与 `win-unpacked/` 解包目录；随包 launcher + core 1.5.2 runtime；三处 Agent 子进程 spawn 用 Electron 二进制 + `ELECTRON_RUN_AS_NODE=1`；最小 PATH（无系统 Node）冒烟 RPC ready；stdio MCP 读不到 npm CLI 时走中文降级；portable 已做只读 CDP 启动冒烟，未签名 | [development.md](development.md)「打包（Windows）」 |
 | 正确性补口 | 用户 / 助手 / 工具结果图片消息统一渲染；消息高度缓存版本 5 带内容指纹，正文变更即失效；独立“恢复会话”导航（`/resume` / `Ctrl+Shift+K`） | [desktop-ui.md](desktop-ui.md) §5；[acceptance.md](acceptance.md) §9 |
 | 逐模型思考默认 | 模型弹层为当前模型选择启动默认档位，写入 `settings.json.modelThinkingLevels`；保存后重启 Agent 并同步当前会话，可清除回“跟随全局” | [desktop-parity.md](desktop-parity.md) §1；[acceptance.md](acceptance.md) §10 |
 | 会话手动排序 | 侧栏“排序任务”模式：置顶 / 最近分组，拖动 ≡ 或 `Alt+↑/↓` 调整，展示序写入 `desktop.json.sessionOrder`，普通视图按该序展示，支持恢复默认 | [desktop-ui.md](desktop-ui.md) §5；[acceptance.md](acceptance.md) §11 |
@@ -22,6 +22,8 @@
 | 打包版 MCP npm | 构建时随包 npm 10.9.8 + 依赖与许可证；打包版安装优先由 `PiSpider.exe`（`ELECTRON_RUN_AS_NODE=1`）执行 `resources/npm/bin/npm-cli.js`，其次系统 PATH npm，均缺失时中文降级；`chrome-devtools-mcp` 可在无 Node/npm 的 PATH 下安装并连接 | [desktop-parity.md](desktop-parity.md) §7；[acceptance.md](acceptance.md) §15 |
 | 会话树切换节点 | 会话树节点新增“切换到此节点”，通过 RPC `navigate_tree` 在同一会话文件内移动 leaf；原分支保留，目标为用户消息时原消息回填输入框；不新建会话文件 | [desktop-parity.md](desktop-parity.md) §2；[acceptance.md](acceptance.md) §16 |
 | MCP 逐工具调用态 | MCP 面板从 `tool_execution_start/update/end` 派生本次运行的逐工具状态：运行中 / 成功 / 失败 / 次数 / 耗时 / 最近错误；服务器声明的工具健康态仍缺上游字段 | [desktop-parity.md](desktop-parity.md) §4；[acceptance.md](acceptance.md) §16 |
+| 自定义主题与动效 | 设置页“外观主题”卡导入 JSON 主题，支持亮 / 暗两套颜色 palette，只允许 22 个 `tokens.css` 颜色变量；导入后立即同步主窗口与二次窗口并持久化到 `desktop.json`，可一键恢复内置主题；两套 CSS 的硬编码动效时长统一收口到 `--motion-fast` / `--motion-base` / `--motion-panel` | [desktop-ui.md](desktop-ui.md) §4.2 / §5；[acceptance.md](acceptance.md) §17 |
+| UI 组件测试与截图基线 | 主题卡抽成 `renderer/theme-card.js`，4 项 HTML 单测覆盖内置 / 自定义 / 单 palette / 转义；`ui:baseline` 用真实 `tokens.css` + `panel.css` 生成 5 张 Electron 截图（内置亮暗、自定义亮暗、360px 窄宽）及尺寸报告 | [desktop-ui.md](desktop-ui.md) §5；[ui-baseline/README.md](ui-baseline/README.md)；[acceptance.md](acceptance.md) §18 |
 
 其余已落地能力（会话控制、模型 / 思考档位 / 会话权限、规则 / 技能 / 提示词 / MCP / 扩展管理、浏览器与代码页、上下文用量、provider OAuth 三家等）的逐项对照见 [desktop-parity.md](desktop-parity.md) §1–§6；UI 已落地清单见 [desktop-ui.md](desktop-ui.md) §5。
 
@@ -34,12 +36,12 @@
 | Mermaid 裁剪运行时 | 12.3.0 | `vendor/mermaid`，仅保留 flowchart / sequence |
 | Pi core | 1.5.2 | CORE_VERSION 三处：`scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs`、`apps/pispider-desktop/packaged-runtime.cjs`；由 `npm run check:core-version` 校验一致 |
 | 本机 Node / npm | Node v22.23.2 / npm 10.9.8（本机实测） | engines 要求 `>=22.19.0`，满足；打包实例不依赖系统 Node |
-| 桌面测试 | 43/43 通过 | `apps/pispider-desktop` node 测试，最近记录 2026-11-20 |
+| 桌面测试 | 63/63 通过 | `apps/pispider-desktop` node 测试，最近记录 2026-11-20 |
 | 扩展包测试 | 45 tests / 44 pass / 1 skipped / 0 fail | `pispider:test`，最近记录 2026-11-20 |
 
 ### 产物与 staging
 
-- 安装包与便携版位于 `apps/pispider-desktop/release/`：`PiSpider Setup 0.1.0.exe`（152,994,543 字节）、`win-unpacked/PiSpider.exe`（250,056,704 字节）；应用图标 `apps/pispider-desktop/build/icon.ico`（六尺寸）。
+- 安装包与便携版位于 `apps/pispider-desktop/release/`：`PiSpider Setup 0.1.0.exe`（156,389,411 字节，SHA256 `89109E20C536E803CC9AD5C6F99E6D9450C757E74DB27103B8FFD0D4AC5E1BCD`）、`PiSpider Portable 0.1.0.exe`（129,586,621 字节，SHA256 `3954C025B9422C73C48BE9858F0E17EAD0AD165FCB8B182D5A99160112D22CA7`）、`win-unpacked/PiSpider.exe`（250,056,704 字节）；应用图标 `apps/pispider-desktop/build/icon.ico`（六尺寸）。三者均未签名。
 - 打包 staging `apps/pispider-desktop/build/packaged/` 已清理；执行 `cd apps/pispider-desktop; npm run dist:win` 会经 `prepare:packaged` 幂等重建后再出包。
 - 仓库已完成版本控制：`main` 分支初始化并推送到 `https://github.com/wangh00/PiSpider`（2026-11-20）；`release/`、`node_modules`、`dist/` 等仍在 `.gitignore` 内，不进入仓库。
 
@@ -53,7 +55,7 @@
 4. [development.md](development.md) — 环境准备、启动、打包、测试流程。
 5. [desktop-ui.md](desktop-ui.md) — UI 信息架构、视觉基线与性能方向。
 6. [commands.md](commands.md) — `/ps` 命令、`ps_task`、数据目录与环境变量速查。
-7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§16 会话树切换节点与 MCP 逐工具调用态，2026-11-20；§15 打包版 MCP npm 方案，2026-11-20；§14 CORE_VERSION 同步与 author，2026-11-20；§13 doctor 日志导出，2026-11-20；§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
+7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§18 Windows portable 与 UI 截图基线，2026-11-20；§17 自定义主题与动效统一，2026-11-20；§16 会话树切换节点与 MCP 逐工具调用态，2026-11-20；§15 打包版 MCP npm 方案，2026-11-20；§14 CORE_VERSION 同步与 author，2026-11-20；§13 doctor 日志导出，2026-11-20；§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
 
 补充参考：[architecture.md](architecture.md)（分层与 RPC 链路）、[desktop-runtime-contract.md](desktop-runtime-contract.md)（RPC 契约）、[apps/pispider-desktop/README.md](../apps/pispider-desktop/README.md)（Electron 运行链路与 IPC）。
 
@@ -70,7 +72,8 @@
 | --- | --- | --- |
 | 开发模式（Electron） | 仓库根 `npm run pispider:desktop` | 映射 `npm run start --workspace=pispider-desktop`（`electron .`）；首次需按 development.md §2 安装应用目录内 Electron |
 | 便携版 | `apps/pispider-desktop/release/win-unpacked/PiSpider.exe` | 解包目录，随包 launcher + core runtime；已做只读 CDP 冒烟 |
-| 安装版 | `apps/pispider-desktop/release/PiSpider Setup 0.1.0.exe` 安装后启动 | NSIS 非 oneClick、可选安装目录；安装器本身尚未执行实测，仅冒烟过便携版 |
+| Portable 单文件 | `apps/pispider-desktop/release/PiSpider Portable 0.1.0.exe` | 单文件自解压到临时目录再启动，首次启动需等待解包；已做只读 CDP 冒烟，未签名 |
+| 安装版 | `apps/pispider-desktop/release/PiSpider Setup 0.1.0.exe` 安装后启动 | NSIS 非 oneClick、可选安装目录；安装器本身尚未执行实测，仅冒烟过 win-unpacked 与 portable |
 | CLI 对照 | 仓库根 `npm run pispider` | 非桌面入口，用于对照 CLI 行为 |
 
 **单实例告诫**：CLI 与桌面共用同一份 `$PISPIDER_HOME` 配置与会话目录（含 `agent/desktop.json`），但不是同一进程；同一时间只应跑一个实例，避免并发写同一会话或配置文件造成覆盖。桌面第二实例启动会聚焦已有窗口。
@@ -85,9 +88,9 @@
 | 2 | 根目录 `npm run pispider:check` | exit 0 |
 | 3 | 根目录 `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
 | 4 | 根目录 `node --test scripts/pispider-launcher.test.mjs scripts/pispider-migrate.test.mjs` | 14/14 pass |
-| 5 | `cd apps/pispider-desktop; npm test` | 43/43 pass |
+| 5 | `cd apps/pispider-desktop; npm test` | 63/63 pass |
 
-桌面端没有完整 UI 自动化测试；改主进程或 renderer 后需实际启动 Electron 覆盖主窗口、输入框发送 / 停止、二次窗口与对应面板读写（[development.md](development.md) §8）。
+桌面端没有完整 UI 自动化测试；主题卡已有组件级 HTML 单测与 5 张截图基线，其余 UI 改动仍需实际启动 Electron 覆盖主窗口、输入框发送 / 停止、二次窗口与对应面板读写（[development.md](development.md) §8）。
 
 ### CDP 调试脚本
 
@@ -149,9 +152,9 @@
 
 | # | 事项 | 阻塞依赖 | 理由 / 判定 |
 | --- | --- | --- | --- |
-| P2-12 | 动效统一、自定义主题导入 | 无；桌面可独立做 | 视觉打磨 |
+| P2-12 | 动效统一、自定义主题导入 | 已完成（2026-11-20） | 视觉打磨：设置页导入 JSON 主题（22 个颜色变量、亮 / 暗 palette、64 KB 上限），导入 / 恢复同步双窗口并持久化 `desktop.json`；两套 CSS 动效时长统一走 tokens |
 | P2-13 | 代码签名与自动更新（electron-updater） | 外部阻塞：证书 / publish 服务 | 对外分发基础设施 |
-| P2-14 | macOS / Linux 包与 portable 单文件目标 | 需对应平台构建环境；桌面可独立做 | 跨平台分发；当前仅 Windows x64 NSIS + win-unpacked |
+| P2-14 | macOS / Linux 包与 portable 单文件目标 | Windows portable 已完成（2026-11-20）；Linux / macOS 待对应平台构建环境 | 跨平台分发；Windows x64 现有 NSIS + portable + win-unpacked；portable 已冒烟 |
 
 ## d. 刻意不做清单
 

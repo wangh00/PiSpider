@@ -69,6 +69,7 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 - **语义色点缀政策**。除低饱和三系外不出现彩色：`--danger`（错误 / 危险操作 / 临界用量）、`--success`（成功 / 字符串高亮）、`--warning`（进行中 / 警告 / 数字高亮）。这些变量可在后续按需整体改为纯灰阶；代码高亮的字符串 / 数字也走对应语义色。
 - **亮暗双主题**。`tokens.css` 内 `:root` 与 `:root[data-theme="dark"]` 两套基线，主窗口与子窗口同步切换；正文、次要文字与语义色在双主题下保持可读对比度。
 - 其余基线：间距 4 / 8 / 12 / 16 / 24；字号 11 / 12 / 13 / 14 / 18 / 24，正文 14，元信息 11–12；圆角 8 / 12；动效 `--motion-fast` 140ms、`--motion-base` 180ms、`--motion-panel` 240ms，浮层 `--ease-standard`，侧栏 / 主区 `--ease-soft`。
+- **自定义主题导入（2026-11-20）**。设置页“外观主题”卡允许导入 JSON：`{ "name": "...", "mode"?: "light" | "dark", "colors": { "light": {...}, "dark": {...} } }`；只接受 22 个颜色 token（`--bg` / `--chat-bg` / `--panel` / `--sidebar` / `--text` / `--accent` / `--danger` 等），颜色仅限 hex、`rgb()` / `rgba()` / `hsl()` / `hsla()` 与 `transparent`，单文件 ≤64 KB。导入后立即应用到主窗口和二次窗口并写入 `desktop.json.customTheme`；恢复内置主题删除该字段。字体、圆角、阴影、动效不在导入范围内。
 
 旧右栏 tab 的 CSS、重复的动画与 focus 规则在同一轮清理中删除，避免继续追加“修正段落”。
 
@@ -146,7 +147,7 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 - 样式清理：删除主窗口遗留的 task / activity / artifact 组件规则，合并重复的 `.composer:focus-within`，删除不会触发的 1040 面板隐藏规则；虚拟滚动落地时又删除 `.message-history` / `.message-list.dense`，规则数不再作为固定验收值。
 - 会话列表分组与内联删除：按“置顶 / 今天 / 昨天 / 本周 / 更早”插入分组标题；删除不再弹阻塞式 `window.confirm`，当前会话不显示删除入口，点其他行的 × 后在行内显示“删除？删除 / 取消”，取消恢复原行。已用 CDP 验证分组标题、确认态、取消路径和当前会话保护。
 - 图标按钮与弹层键盘：刷新任务、设置、附件、发送、浏览器前进 / 后退 / 刷新等纯图标按钮补齐 `aria-label`；确认 / 输入 / 选择弹层支持 Tab 焦点循环，选择弹层支持上下方向键，Escape 关闭。已用 CDP 验证方向键从 A 移到 B、末尾 Tab 回到首个控件。
-- 搜索命中高亮与全文搜索：`highlightText()` 先按原文小写查找，再逐段 `escapeHtml`，命中片段用 `.search-hit` 标记；左栏查询通过 `sessions:search` 交给主进程读取会话 JSONL，匹配标题、ID、目录、用户 / 助手消息正文，支持 `re:` 正则、引号短语和多 token；结果行显示 snippet、匹配字段标签和“相关度 / 最近”排序。搜索时不再渲染分组标题；单字母 token 不参与高亮，避免 `inspect a file` 把每个 `a` 都染色。已用 CDP 验证标题命中、消息正文命中、`re:insp.*file`、非法正则错误、`relevance` / `recent` 切换和 `inspect a file` 的 2 处高亮。
+- 搜索命中高亮与全文搜索：`highlightText()` 先按原文小写查找，再逐段 `escapeHtml`，命中片段用 `.search-hit` 标记；左栏查询通过 `sessions:search` 交给主进程读取会话 JSONL，匹配标题、ID、目录、用户 / 助手消息正文，支持 `re:` 正则、引号短语和多 token；结果行保持单行标题，匹配片段和字段放在按钮 tooltip 中，并提供“相关度 / 最近”排序。搜索时不再渲染分组标题；单字母 token 不参与高亮，避免 `inspect a file` 把每个 `a` 都染色。已用 CDP 验证标题命中、消息正文命中、`re:insp.*file`、非法正则错误、`relevance` / `recent` 切换和 `inspect a file` 的 2 处高亮。
 - MCP 逐工具启停列表：编辑弹层用检查结果和已有 `toolExposure` 合并工具行，每行复选框 + `direct` / `deferred` / `codemode` 下拉；取消勾选禁用下拉并保存为 `hidden`。已用 CDP 验证 `deferred` / `hidden` 回显、勾选后下拉启用、`collectMcpToolExposure()` 输出 `{ echo: "direct", ping: "deferred" }`。
 - MCP 批量检查（2026-11-18）：MCP 窗口打开时自动检查当前作用域全部服务器，顶部只保留“添加服务器 / 重载 Agent / 检查连接”；“刷新”和窗口级“重连 MCP”已移除，检查按钮在检查期间显示“检查中…”并禁用，完成后刷新摘要“N / M 已连接”、数值条和每台服务器的状态 / 工具 / 错误。已用两台临时服务器验证：一台停用显示“已停用”，一台不可达 HTTP 服务器显示 `error / fetch failed`，顶部为 `0 / 1 已连接`，窗口无横向溢出；临时配置已删除。
 - 压缩说明（2026-11-18）：会话窗口顶部“压缩上下文”改为先打开确认弹层，包含可选多行“压缩说明”和默认策略提示，确认按钮“开始压缩”；非空说明通过 `compact` 的 `customInstructions` 传给 Pi，留空则使用默认策略。压缩期间顶部按钮显示“压缩中...”，完成后刷新会话统计。已验证弹层文案、输入框和取消路径；测试拦截时没有写入真实会话。
@@ -157,7 +158,7 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 - 会话切换端到端：1200 条临时会话没有快照时首次打开为最新切片（1080–1199）并落到底部；保存 index 648 的锚点后切到 `111` 再切回，恢复同一消息和同一视口偏移；reload 也按锚点恢复。`refreshFromAgent()` 用代际标记丢弃过期响应，`sessionFile` 变化时重置虚拟切片；恢复期间 `scrollRestorePending` 阻止 `normalizeMessageWindow()` 跟随底部，避免历史锚点被最新切片覆盖。
 - 队列逐条查看：`queue_update` 的 `steering` / `followUp` 数组保存在 renderer，`N 条排队` 按钮打开排队面板，按“插话 / 排队”分标签展示，每项可复制；`清空排队` 仍调用 `clear_queue` 并把全部文本放回输入框。Pi 当前没有 `get_queue` / 单条删除 RPC，因此这是只读查看 + 复制的降级原型，逐条删除仍等上游。
 - 资源入口为两列网格：规则 / 技能 / MCP / 扩展占两行，状态作为整行入口放在下方，避免第 5 项留下空网格；数量角标分别维护规则、技能、MCP 和非内置扩展数量。
-- 动效统一：`tokens.css` 新增 `--motion-fast` / `--motion-base` / `--motion-panel` 和 `--ease-standard` / `--ease-soft`；主窗口浮层、侧栏、主区、代码页和二次窗口统一引用。主窗口与二次窗口各自只保留一条全局 `prefers-reduced-motion` 规则（动画 1ms、过渡 1ms、滚动 auto），删除三段分散的组件级 reduced-motion。CDP 确认两侧窗口 `panel-enter` / `sidebar-in` 时长均为 240ms、token 读到 `240ms`。
+- 动效统一（2026-11-20）：`tokens.css` 新增 `--motion-fast` / `--motion-base` / `--motion-panel` 和 `--ease-standard` / `--ease-soft`；主窗口浮层、侧栏、主区、代码页和二次窗口统一引用。`styles.css` / `panel.css` 中原有 120 / 140 / 150 / 160 / 180 / 200 / 240ms 过渡与动画时长及散落的 `cubic-bezier(0.2, 0.8, 0.2, 1)` 已全部替换为 token，只保留 30–70ms 编排延迟和 reduced-motion 的 1ms。主窗口与二次窗口各自只保留一条全局 `prefers-reduced-motion` 规则（动画 1ms、过渡 1ms、滚动 auto），删除三段分散的组件级 reduced-motion。CDP 确认两侧窗口 `panel-enter` / `sidebar-in` 时长均为 240ms、token 读到 `240ms`。
 - MCP 状态横幅：`runMcpServerCommand` 在能力门禁和 `/mcp` prompt 前后广播 `mcp:command-state`，主窗口按 `pending` / `sent` / `error` 显示 warning / info / error 横幅，均带“打开 MCP”动作；已用 CDP 验证三种文案、色调和跳转。
 - 代码块复制：`renderMarkdown` 为每个 fenced code block 生成 header（语言标签 + “复制代码”），消息列表用事件委托读取 `<code>` 文本并写系统剪贴板；已验证 `js` 标签、按钮和剪贴板 `const x = 1;`。
 - Markdown 扩展（2026-11-18）：`renderMarkdown` 从单段正则改为块解析，支持标题 h1–h6、段落、无序 / 有序列表、引用、表格（含左 / 中 / 右对齐）、删除线、行内代码、链接和 fenced code block；常见语言按关键字 / 字符串 / 数字 / 注释做轻量高亮，未知语言退回纯文本。表格外层 `.markdown-table-wrap` 横向滚动，引用块用左侧强调线，代码块复制按钮保留。已用 CDP 渲染样例验证 `<h1>`、`<ul>`、`<ol>`、`<blockquote>`、`<table>`、`<hr>`、`.code-block`、表格对齐、`tok-keyword` / `tok-string` / `tok-number` / `tok-comment`，并截图确认浅色布局。
@@ -186,6 +187,9 @@ PiSpider Desktop 不是把 CLI 塞进一个窗口，也不是配置面板集合�
 - 会话手动排序（2026-11-20）：侧栏标题新增 `#sortSessionsButton`（双箭头图标），点击进入“排序任务”模式，顶部显示“拖动 ≡ 调整顺序，自动保存”以及“恢复默认 / 完成”。排序视图按“置顶会话 / 最近会话”两组渲染，每行左侧有可拖动的 `≡` 手柄和组内序号，隐藏置顶 / 删除按钮；`dragstart` 记录路径，`dragover` 按目标行上下半区决定插入前 / 后并加 `drop-before` / `drop-after` 高亮，`drop` 调 `reorderSessionOrder()`，`dragend` 清空拖拽态。手柄支持 `Alt+↑/↓` 键盘步进。每次调整先本地更新 `state.sessionOrder` 并重绘，再调 `sessions:set-order` 写入 `desktop.json.sessionOrder`（空数组删除字段），失败回滚并 toast。主进程 `listSessions()` 改为“置顶优先 → 手动序索引 → 更新时间降序”，未在手动序中的会话排在后面；排序上限 500 条，且只接受 sessionDir 内路径。搜索框有内容时禁止进入排序并 toast，进入搜索也会退出排序。CDP 实测：三会话默认分组“今天 2 / 置顶 1”，进入排序后分组“置顶会话 1 / 最近会话 2”、3 个手柄、序号 1/1/2，初始序 `b,a,c`；`reorderSessionOrder(a,c,true)` 后本地与磁盘均为 `b,c,a`，列表行序同步；`moveSessionByStep(a,-1)` 后变 `b,a,c` 并落盘；`resetSessionOrder()` 后本地与磁盘均为 `[]`；有搜索词时进入排序被拦截。真实临时会话文件下 `setSessionOrder([c,a,b])` 后 `listSessions()` 依次返回 c、a、b，清空后回到默认顺序。
 - 高级设置卡（2026-11-20）：设置页在“工作模式 / 项目信任”之后新增 `advanced-card`，两列表单包含传输协议、HTTP 代理、Shell 路径，下面是默认工具多行输入和上下文压缩区（自动压缩、预留 tokens、保留最近 tokens）。`config:get-advanced` 返回用户级 `settings.json` 的值与文件路径；`config:set-advanced` 校验代理必须是 `http(s)` URL、Shell 路径不含换行、工具列表不能把纯名称与 `+名称` / `-名称` 混用且修饰项不支持通配符、token 必须是非负安全整数，写入后重启 Agent 并保留当前会话。保存时保留 `compaction.modelOverrides`，空代理 / Shell / 工具列表删除对应字段；传输协议即使选 `auto` 也显式写入以覆盖项目级值。CDP 实测：初始卡显示 `auto / 16384 / 20000`；写入 `websocket`、`http://127.0.0.1:7890`、PowerShell 路径、`+grep/-write`、关闭压缩 `12000/9000` 后 `settings.json` 一致且 `restarted=true`；UI 改 `sse`、`read/bash/grep` 后单击保存 1.1 秒完成并落盘；非法代理、混用工具、通配修饰项、负 token、非法 transport 均返回对应中文错误；手工注入 `compaction.modelOverrides` 后再保存，覆盖项仍在。
 - doctor 日志导出（2026-11-20）：状态窗口“环境诊断”卡片右侧新增“导出诊断”，与“运行诊断 / 重新检查”同排。按钮调用 `system:export-diagnostics` 打开保存对话框，默认文件名 `pispider-diagnostics-<时间戳>.txt`；主进程构造 `app / agent / diagnostics / logs` 报告，由 `doctor-report.cjs` 格式化为纯文本并统一脱敏。运行时日志由 `recordDiagnostic()` 环形缓冲记录，最多 400 条 / 20 万字符，来源包括 runtime 状态迁移、agent stderr、启动错误和非零退出；导出时再删掉 `diagnostics.auth.raw`。CDP 实测：状态页按钮文案“导出诊断”，直接调用 `exportDiagnostics()` 写入临时文件 3404 B，包含“PiSpider 诊断报告 / 环境诊断 / 运行时日志（3 条）/ 结构化数据”，日志含 `starting`、agent stderr 和 `running`；报告内无 auth 原始输出；单测覆盖 `sk-*`、Bearer、JSON token、GitHub / Google key 的屏蔽。
+- 会话列表单行化（2026-11-20）：会话窗口标题固定为“会话”，不再把未命名会话的首条用户消息作为标题下的小字；侧栏会话行删除第二行预览，只保留标题和时间，行高收紧到单行。搜索结果的匹配片段不再占据第二行，改为按钮 tooltip；`sessionRowHtml()` 仍保留置顶、删除和搜索高亮。CDP 实测会话窗口 `panelTitle=会话`、`panelMeta` 为空，侧栏每行高度一致且无 `.session-preview` 节点。
+- 自定义主题导入（2026-11-20）：设置页新增“外观主题”卡，显示当前主题名、已覆盖的亮 / 暗模式与两个 `Aa` 预览色块，提供“导入主题文件”和“恢复内置主题”。主进程 `theme-store.cjs` 校验 JSON：只允许 22 个颜色 token，颜色仅限 hex / `rgb()` / `rgba()` / `hsl()` / `hsla()` / `transparent`，文件 ≤64 KB，非法变量、颜色或结构返回中文错误；导入成功写 `desktop.json.customTheme` 并广播到所有窗口，恢复时删除字段。`renderer/theme.js` 负责先清除旧的内联变量再按当前模式写入，主窗口和二次窗口共用。CDP 实测：注入“测试灰绿”主题后重启，主窗口和设置窗口均读到 `--bg=#eef3ef` / `--accent=#245c3e`；切暗色后两窗口同步 `--bg=#101713` / `--accent=#b8d8c2`；点击“恢复内置主题”后两窗口回到 `--bg=#121212` / `--accent=#ffffff`，`desktop.json` 删除 `customTheme` 且保留 `zoomFactor` / `lastSessionPath`。系统文件选择框流程尚未在自动化中实选文件（已确认点击后原生文件框正常打开），解析与应用链路由单测 + 注入配置覆盖。
+- UI 组件测试与截图基线（2026-11-20）：主题卡 HTML 抽到 `renderer/theme-card.js`，由 `panel.js` 的 `themeSettingsCardHtml()` 调用 `window.PiSpiderThemeCard.html(theme)`，同时保留 Node `module.exports` 供单测使用。`test/theme-card.test.mjs` 4 项覆盖内置主题无色块 / 无恢复按钮、自定义双 palette 两个色块、单 palette 一个色块、主题名 HTML 转义。`test/ui-gallery.html` 使用真实 `tokens.css` / `panel.css` / `theme.js` / `theme-card.js`；`test/ui-baseline.cjs` 以 1060×760 Electron 窗口生成 5 张基线：内置亮 / 暗、测试灰绿亮 / 暗、测试灰绿 360px 窄宽，写入 `docs/ui-baseline/`，`report.json` 记录卡片宽高、色块数量与横向溢出。断言：内置卡 1012×173.52、色块 0；自定义卡 1012×241.52、色块 2；窄宽卡 312×352.70、色块 2 纵向堆叠；均无横向溢出。截图前需两帧 `requestAnimationFrame` + 80ms，且窗口必须 `show: true`，否则 `capturePage` 会抛 `UnknownVizError` 或截到上一场景旧帧。生成命令 `npm run ui:baseline`；改主题卡样式后重新生成并人工比对。
 
 ## 6. 路线图
 
@@ -203,8 +207,7 @@ P1：
 
 P2：
 
-1. 组件级渲染测试与截图基线。
-2. 主题导入、紧凑 / 舒适密度。
+1. 组件级渲染测试与截图基线已完成（2026-11-20）；剩余紧凑 / 舒适密度。
 
 ## 7. 验收清单
 

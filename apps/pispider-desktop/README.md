@@ -59,16 +59,18 @@ Electron main
 
 ```powershell
 cd apps/pispider-desktop
-npm run dist:win
+npm run dist:win                 # NSIS + portable
+npm run dist:win:portable        # 只构建 portable
 ```
 
-`dist:win` 先执行 `prepare:packaged`（`scripts/prepare-packaged-runtime.mjs`）幂等重建 `build/packaged/` staging：launcher closure（`scripts/` + `packages/pispider/`）、完整 core 1.5.2 缓存副本，以及 npm 10.9.8 CLI（含依赖）；自检通过后再由 electron-builder 26.18.0 产出 NSIS 安装包。首次构建会下载 nsis / winCodeSign 到 electron-builder 本地缓存。
+`dist:win` 先执行 `prepare:packaged`（`scripts/prepare-packaged-runtime.mjs`）幂等重建 `build/packaged/` staging：launcher closure（`scripts/` + `packages/pispider/`）、完整 core 1.5.2 缓存副本，以及 npm 10.9.8 CLI（含依赖）；自检通过后再由 electron-builder 26.18.0 产出 NSIS 安装包与 portable 单文件。首次构建会下载 nsis / winCodeSign 到 electron-builder 本地缓存。
 
 升级随包 Pi core 时用 `npm run pispider:core-version -- 1.5.3` 同步 `scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs` 和 `packaged-runtime.cjs` 三处 `CORE_VERSION`；`npm run check:core-version` 校验一致性，根 `npm run check` 已包含该检查。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。
 
 产物在 `release/`：
 
 - `PiSpider Setup <version>.exe`：NSIS 安装包（非 oneClick、perMachine=false）；
+- `PiSpider Portable <version>.exe`：portable 单文件，运行时自解压到 `%TEMP%` 再启动，首次启动需等待解包；
 - `win-unpacked/`：解包可运行目录，入口 `PiSpider.exe`。
 
 随包 `resources/` 布局：
@@ -89,7 +91,7 @@ resources/
 - MCP stdio 预置懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`。安装时优先用 `resources/npm/bin/npm-cli.js`（通过 `PiSpider.exe` + `ELECTRON_RUN_AS_NODE=1` 执行），其次用系统 PATH 中的 npm；两者都没有时目录与命令列表显示可读中文降级。随包 npm 固定为 10.9.8，许可证随 `resources/npm/LICENSE` 分发。
 - 打包实例与 dev 实例共享 `PISPIDER_HOME/agent` 会话与配置；Electron userData profile 按 productName 隔离，localStorage / 主题互不影响。
 
-未做：代码签名、electron-updater 自动更新、macOS / Linux 目标、portable 单文件目标。
+未做：代码签名、electron-updater 自动更新、macOS / Linux 目标。portable 单文件已构建并做过隔离 `PISPIDER_HOME` + CDP 只读启动冒烟；NSIS 安装流程尚未执行安装实测。
 
 ## 第一次使用
 
@@ -169,6 +171,8 @@ node scripts/pispider-desktop-debug.mjs inject-event '{"type":"debug_noop"}'
 
 脚本只提供固定命令，不暴露任意 eval；`send` 会走正常输入框路径并调用当前真实模型，可能产生推理费用。脚本不进入正式打包产物。
 
+UI 截图基线用 `npm run ui:baseline` 生成，覆盖设置页主题卡的亮 / 暗、内置 / 自定义与 360px 窄宽场景，产物和尺寸报告在 [docs/ui-baseline](../../docs/ui-baseline/)。修改主题卡样式后重新生成并人工比对。
+
 ## 未完成
 
 完整的 CLI / Pi 能力对照和优先级见 [docs/desktop-parity.md](../../docs/desktop-parity.md)。当前主要缺口：
@@ -177,6 +181,6 @@ node scripts/pispider-desktop-debug.mjs inject-event '{"type":"debug_noop"}'
 - 会话分支已接 label、会话 tree 的“从此分支 / 复制”、rename、删除非当前会话、置顶排序、从其他目录恢复、回退分支、回退上一轮 / 再回退一轮、复制会话、tree 查看、导出 HTML / JSONL、模型 / 思考强度 / 自动压缩 / 自动重试 / 中止重试切换；tree 节点删除未接，侧栏会话列表手动排序已接。
 - 模型：默认配置、API Key、自定义端点、已保存模型、本地检查、模型列表探测和真实推理测试已接；输入框模型菜单搜索、模型 / 思考强度循环、作用域编辑已接；provider OAuth 已接 Kimi For Coding、OpenRouter、OpenAI 三家，其他 provider 仍可用 CLI `/login`。
 - 文件选择器会把非图片路径追加到 prompt；选择 png/jpg/gif/webp/bmp 时读取为图片附件，输入框 `@` 会检索当前项目文件并插入相对路径；`/share` 已在会话子窗口接入 GitHub 私有 Gist 路径：导出当前会话 HTML 后调用 `gh gist create --public=false`，再生成 `https://pi.dev/session/<gistId>` 预览链接；需要本机安装 `gh` 并已 `gh auth login`，可用 `PISPIDER_GH_BIN` 指定可执行文件路径，`PI_SHARE_VIEWER_URL` 可覆盖预览基址；Pi 的 Radius artifact 路径和分享目的地设置尚未接。
-- Electron / Mermaid 依赖已写入 `apps/pispider-desktop/package.json`，并反映到根 `package-lock.json` 的 workspace 条目；`mermaid` 是开发依赖，打包时只带 `vendor/mermaid` 裁剪运行时。当前 Electron 二进制通过根 `node_modules/electron/dist` 使用。Windows NSIS 安装包与应用图标已接；自动更新、代码签名、macOS / Linux 目标和 portable 未做；Mermaid 裁剪已完成。
+- Electron / Mermaid 依赖已写入 `apps/pispider-desktop/package.json`，并反映到根 `package-lock.json` 的 workspace 条目；`mermaid` 是开发依赖，打包时只带 `vendor/mermaid` 裁剪运行时。当前 Electron 二进制通过根 `node_modules/electron/dist` 使用。Windows NSIS 安装包、portable 单文件与应用图标已接；自动更新、代码签名、macOS / Linux 目标未做；Mermaid 裁剪已完成。
 - 真实 prompt 已验证：自定义 Anthropic Messages 端点使用服务根地址时能返回 assistant 文本；`baseUrl` 带 `/v1` 会触发 `/v1/v1/messages` 404。模型配置 UI 已用真实 Key 验证写入、连接测试和 runtime 重启链路。
-- 还没有代码签名、自动更新、macOS / Linux 目标和 portable 单文件包。
+- 还没有代码签名、自动更新、macOS / Linux 目标；portable 单文件已构建并冒烟。
