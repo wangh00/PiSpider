@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("pispider", {
   getInfo: () => ipcRenderer.invoke("app:info"),
   getDiagnostics: () => ipcRenderer.invoke("system:diagnostics"),
   listSessions: () => ipcRenderer.invoke("sessions:list"),
+  getSessionOrder: () => ipcRenderer.invoke("sessions:order"),
+  setSessionOrder: (items) => ipcRenderer.invoke("sessions:set-order", items),
   searchSessions: (query, sort) => ipcRenderer.invoke("sessions:search", query, sort),
   deleteSession: (sessionPath) => ipcRenderer.invoke("sessions:delete", sessionPath),
   toggleSessionPin: (sessionPath) => ipcRenderer.invoke("sessions:pin", sessionPath),

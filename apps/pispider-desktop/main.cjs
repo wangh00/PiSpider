@@ -2866,6 +2866,38 @@ async function walkSessionFiles(root, output, depth = 0) {
   }
 }
 
+function normalizeSessionOrder(value, root) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const order = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !item.trim()) continue;
+    const resolved = path.resolve(item);
+    if (!resolved.startsWith(`${root}${path.sep}`) || seen.has(resolved)) continue;
+    seen.add(resolved);
+    order.push(resolved);
+  }
+  return order.slice(0, 500);
+}
+
+async function getSessionOrder() {
+  const paths = await loadRuntimePaths();
+  const settings = await readDesktopSettings();
+  return { order: normalizeSessionOrder(settings.sessionOrder, path.resolve(paths.sessionDir)) };
+}
+
+async function setSessionOrder(items) {
+  const paths = await loadRuntimePaths();
+  const root = path.resolve(paths.sessionDir);
+  const order = normalizeSessionOrder(items, root);
+  const settings = await readDesktopSettings();
+  if (order.length) settings.sessionOrder = order;
+  else delete settings.sessionOrder;
+  await writeDesktopSettings(settings);
+  send("sessions:changed", { order: true });
+  return { order };
+}
+
 async function listSessions(sessionDir) {
   const files = [];
   await walkSessionFiles(sessionDir, files);
@@ -2886,14 +2918,21 @@ async function listSessions(sessionDir) {
           .map((item) => path.resolve(item))
       : [],
   );
+  const order = normalizeSessionOrder(settings.sessionOrder, path.resolve(sessionDir));
+  const orderIndex = new Map(order.map((item, index) => [item, index]));
   for (const session of sessions) {
     session.pinned = pinned.has(path.resolve(session.path));
   }
-  sessions.sort(
-    (left, right) =>
-      Number(right.pinned) - Number(left.pinned) ||
-      String(right.updatedAt).localeCompare(String(left.updatedAt)),
-  );
+  sessions.sort((left, right) => {
+    const pinnedDelta = Number(right.pinned) - Number(left.pinned);
+    if (pinnedDelta) return pinnedDelta;
+    const leftOrder = orderIndex.get(path.resolve(left.path));
+    const rightOrder = orderIndex.get(path.resolve(right.path));
+    if (leftOrder !== undefined || rightOrder !== undefined) {
+      return (leftOrder ?? Number.MAX_SAFE_INTEGER) - (rightOrder ?? Number.MAX_SAFE_INTEGER);
+    }
+    return String(right.updatedAt).localeCompare(String(left.updatedAt));
+  });
   return sessions.slice(0, 80);
 }
 
@@ -3598,6 +3637,8 @@ ipcMain.handle("sessions:list", async () => {
   const paths = await loadRuntimePaths();
   return listSessions(paths.sessionDir);
 });
+ipcMain.handle("sessions:order", async () => getSessionOrder());
+ipcMain.handle("sessions:set-order", async (_event, items) => setSessionOrder(items));
 ipcMain.handle("sessions:search", async (_event, query, sort) => searchSessions(query, sort));
 ipcMain.handle("sessions:delete", async (_event, sessionPath) => deleteSessionFile(sessionPath));
 ipcMain.handle("sessions:pin", async (_event, sessionPath) => toggleSessionPin(sessionPath));

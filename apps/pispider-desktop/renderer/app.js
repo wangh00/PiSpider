@@ -82,6 +82,9 @@ const state = {
   sessionSearchError: "",
   sessionSearchTotal: 0,
   confirmDeleteSession: "",
+  sessionOrder: [],
+  sessionSortMode: false,
+  sessionDragPath: "",
   zoomFactor: 1,
   rightTab: localStorage.getItem("pispider-right-tab") || "browser",
   panelOpen: localStorage.getItem("pispider-panel") !== "closed",
@@ -4437,6 +4440,166 @@ function sessionGroupLabel(session) {
   return "更早";
 }
 
+function orderedSessionsByManualOrder() {
+  const orderIndex = new Map(state.sessionOrder.map((sessionPath, index) => [sessionPath, index]));
+  return [...state.sessions].sort((left, right) => {
+    const pinnedDelta = Number(right.pinned) - Number(left.pinned);
+    if (pinnedDelta) return pinnedDelta;
+    const leftOrder = orderIndex.get(left.path);
+    const rightOrder = orderIndex.get(right.path);
+    if (leftOrder !== undefined || rightOrder !== undefined) {
+      return (leftOrder ?? Number.MAX_SAFE_INTEGER) - (rightOrder ?? Number.MAX_SAFE_INTEGER);
+    }
+    return String(right.updatedAt).localeCompare(String(left.updatedAt));
+  });
+}
+
+function sortSessionsLocally() {
+  state.sessions = orderedSessionsByManualOrder();
+}
+
+function ensureSessionOrderComplete() {
+  state.sessionOrder = orderedSessionsByManualOrder().map((session) => session.path);
+}
+
+function sessionSortRowHtml(session, position) {
+  const active = state.session?.sessionFile === session.path;
+  const previewText = session.preview || session.cwd || "暂无消息";
+  return `<div class="session-row session-sort-row${active ? " active" : ""}" data-sort-session="${escapeHtml(
+    session.path,
+  )}" data-sort-group="${session.pinned ? "pinned" : "recent"}">
+    <span class="session-drag-handle" draggable="true" tabindex="0" role="button" title="拖动调整顺序，或用 Alt+↑ / Alt+↓" aria-label="拖动调整顺序">≡</span>
+    <button class="session-item${active ? " active" : ""}" data-session="${escapeHtml(session.path)}" type="button">
+      <div class="session-item-top">
+        <span class="session-title">${escapeHtml(session.name)}</span>
+        <span class="session-time">${escapeHtml(timeLabel(session.updatedAt))}</span>
+      </div>
+      <span class="session-preview">${escapeHtml(previewText)}</span>
+    </button>
+    <span class="session-sort-position">${position + 1}</span>
+  </div>`;
+}
+
+function renderSessionSortMode(list) {
+  const ordered = orderedSessionsByManualOrder();
+  const groups = [
+    { label: "置顶会话", pinned: true },
+    { label: "最近会话", pinned: false },
+  ];
+  const body = groups
+    .map((group) => {
+      const sessions = ordered.filter((session) => session.pinned === group.pinned);
+      if (!sessions.length) return "";
+      return `<div class="session-group-head"><span>${group.label}</span><span class="section-count">${sessions.length}</span></div>${sessions
+        .map((session, index) => sessionSortRowHtml(session, index))
+        .join("")}`;
+    })
+    .join("");
+  list.innerHTML = `<div class="session-sort-bar"><span>拖动 ≡ 调整顺序，自动保存</span><div class="session-sort-actions"><button class="popover-cycle" data-reset-session-order type="button">恢复默认</button><button class="popover-cycle primary" data-exit-session-sort type="button">完成</button></div></div>${
+    body || '<div class="sidebar-empty">暂无任务</div>'
+  }`;
+}
+
+async function persistSessionOrder(order) {
+  const previous = state.sessionOrder;
+  state.sessionOrder = order;
+  sortSessionsLocally();
+  renderSessions();
+  try {
+    const response = await window.pispider.setSessionOrder(order);
+    if (Array.isArray(response?.order)) state.sessionOrder = response.order;
+  } catch (error) {
+    state.sessionOrder = previous;
+    sortSessionsLocally();
+    renderSessions();
+    showToast(error.message || "保存排序失败", "error");
+  }
+}
+
+function commitSessionGroupOrder(pinned, paths) {
+  const ordered = orderedSessionsByManualOrder();
+  const pinnedPaths = pinned ? paths : ordered.filter((session) => session.pinned).map((session) => session.path);
+  const recentPaths = pinned ? ordered.filter((session) => !session.pinned).map((session) => session.path) : paths;
+  void persistSessionOrder([...pinnedPaths, ...recentPaths]);
+}
+
+function reorderSessionOrder(draggedPath, targetPath, placeAfter) {
+  if (!draggedPath || !targetPath || draggedPath === targetPath) return;
+  const ordered = orderedSessionsByManualOrder();
+  const target = ordered.find((session) => session.path === targetPath);
+  const dragged = ordered.find((session) => session.path === draggedPath);
+  if (!target || !dragged || Boolean(target.pinned) !== Boolean(dragged.pinned)) return;
+  const paths = ordered
+    .filter((session) => Boolean(session.pinned) === Boolean(target.pinned) && session.path !== draggedPath)
+    .map((session) => session.path);
+  const targetIndex = paths.indexOf(targetPath);
+  if (targetIndex < 0) return;
+  paths.splice(placeAfter ? targetIndex + 1 : targetIndex, 0, draggedPath);
+  commitSessionGroupOrder(Boolean(target.pinned), paths);
+}
+
+function moveSessionByStep(sessionPath, offset) {
+  const ordered = orderedSessionsByManualOrder();
+  const session = ordered.find((entry) => entry.path === sessionPath);
+  if (!session) return;
+  const paths = ordered
+    .filter((entry) => Boolean(entry.pinned) === Boolean(session.pinned))
+    .map((entry) => entry.path);
+  const index = paths.indexOf(sessionPath);
+  const next = index + offset;
+  if (index < 0 || next < 0 || next >= paths.length) return;
+  paths.splice(index, 1);
+  paths.splice(next, 0, sessionPath);
+  commitSessionGroupOrder(Boolean(session.pinned), paths);
+}
+
+function toggleSessionSortMode() {
+  if (state.sessionSortMode) {
+    state.sessionSortMode = false;
+    renderSessions();
+    return;
+  }
+  if (state.search.trim()) {
+    showToast("请先清空搜索再调整会话顺序", "warning");
+    return;
+  }
+  ensureSessionOrderComplete();
+  state.sessionSortMode = true;
+  state.confirmDeleteSession = "";
+  renderSessions();
+}
+
+async function resetSessionOrder() {
+  const previous = state.sessionOrder;
+  state.sessionOrder = [];
+  try {
+    await window.pispider.setSessionOrder([]);
+  } catch (error) {
+    state.sessionOrder = previous;
+    sortSessionsLocally();
+    renderSessions();
+    showToast(error.message || "恢复默认排序失败", "error");
+    return;
+  }
+  sortSessionsLocally();
+  renderSessions();
+  showToast("已恢复默认排序");
+}
+
+function clearSessionDragState() {
+  state.sessionDragPath = "";
+  for (const row of document.querySelectorAll(
+    ".session-sort-row.dragging, .session-sort-row.drop-before, .session-sort-row.drop-after",
+  )) {
+    row.classList.remove("dragging", "drop-before", "drop-after");
+  }
+}
+
+function sessionDropAfter(event, row) {
+  const rect = row.getBoundingClientRect();
+  return event.clientY > rect.top + rect.height / 2;
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -4605,6 +4768,13 @@ function renderSessions() {
   const list = $("sessionList");
   const query = state.search.trim();
   $("sessionCount").textContent = String(state.sessions.length);
+  $("sortSessionsButton")?.classList.toggle("active", state.sessionSortMode);
+
+  if (!query && state.sessionSortMode) {
+    state.sessionSearchActive = -1;
+    renderSessionSortMode(list);
+    return;
+  }
 
   if (!query) {
     state.sessionSearchActive = -1;
@@ -5214,7 +5384,12 @@ function handleEvent(event) {
 
 async function refreshSessions() {
   try {
-    state.sessions = await window.pispider.listSessions();
+    const [sessions, orderResponse] = await Promise.all([
+      window.pispider.listSessions(),
+      window.pispider.getSessionOrder().catch(() => ({ order: [] })),
+    ]);
+    state.sessions = Array.isArray(sessions) ? sessions : [];
+    state.sessionOrder = Array.isArray(orderResponse?.order) ? orderResponse.order : [];
     scheduleRender();
     if (state.search.trim()) scheduleSessionSearch(100);
   } catch (error) {
@@ -5764,9 +5939,11 @@ function bindEvents() {
   $("newTaskButton").addEventListener("click", newTask);
   $("changesBody").addEventListener("click", handleCodeAction);
   $("refreshSessionsButton").addEventListener("click", refreshSessions);
+  $("sortSessionsButton").addEventListener("click", toggleSessionSortMode);
   $("searchInput").addEventListener("input", (event) => {
     state.search = event.target.value;
     state.sessionSearchActive = -1;
+    if (state.sessionSortMode) state.sessionSortMode = false;
     scheduleSessionSearch();
   });
   $("searchInput").addEventListener("keydown", (event) => {
@@ -5808,6 +5985,17 @@ function bindEvents() {
   });
 
   $("sessionList").addEventListener("click", (event) => {
+    if (event.target.closest("[data-exit-session-sort]")) {
+      event.stopPropagation();
+      state.sessionSortMode = false;
+      renderSessions();
+      return;
+    }
+    if (event.target.closest("[data-reset-session-order]")) {
+      event.stopPropagation();
+      resetSessionOrder();
+      return;
+    }
     const sortButton = event.target.closest("[data-search-sort]");
     if (sortButton) {
       event.stopPropagation();
@@ -5850,6 +6038,50 @@ function bindEvents() {
       }
       switchSession(button.dataset.session);
     }
+  });
+
+  $("sessionList").addEventListener("dragstart", (event) => {
+    const handle = event.target.closest(".session-drag-handle");
+    const row = handle?.closest(".session-sort-row");
+    if (!row) return;
+    state.sessionDragPath = row.dataset.sortSession || "";
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", state.sessionDragPath);
+    row.classList.add("dragging");
+  });
+  $("sessionList").addEventListener("dragover", (event) => {
+    const row = event.target.closest(".session-sort-row");
+    if (!row || !state.sessionDragPath || row.dataset.sortSession === state.sessionDragPath) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    for (const other of $("sessionList").querySelectorAll(".drop-before, .drop-after")) {
+      if (other !== row) other.classList.remove("drop-before", "drop-after");
+    }
+    const after = sessionDropAfter(event, row);
+    row.classList.toggle("drop-after", after);
+    row.classList.toggle("drop-before", !after);
+  });
+  $("sessionList").addEventListener("dragleave", (event) => {
+    const row = event.target.closest(".session-sort-row");
+    if (row && !row.contains(event.relatedTarget)) row.classList.remove("drop-before", "drop-after");
+  });
+  $("sessionList").addEventListener("drop", (event) => {
+    const row = event.target.closest(".session-sort-row");
+    if (!row || !state.sessionDragPath) return;
+    event.preventDefault();
+    const targetPath = row.dataset.sortSession || "";
+    const after = sessionDropAfter(event, row);
+    const draggedPath = state.sessionDragPath;
+    clearSessionDragState();
+    reorderSessionOrder(draggedPath, targetPath, after);
+  });
+  $("sessionList").addEventListener("dragend", () => clearSessionDragState());
+  $("sessionList").addEventListener("keydown", (event) => {
+    const handle = event.target.closest(".session-drag-handle");
+    if (!handle || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+    event.preventDefault();
+    const row = handle.closest(".session-sort-row");
+    moveSessionByStep(row?.dataset.sortSession || "", event.key === "ArrowDown" ? 1 : -1);
   });
 
   $("sendButton").addEventListener("click", () => {
