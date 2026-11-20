@@ -2037,12 +2037,52 @@ function normalizeEnabledModels(input) {
   return patterns.filter((pattern) => pattern.length <= 220);
 }
 
+const MODEL_THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
+function normalizeModelThinkingLevels(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const levels = {};
+  for (const [reference, level] of Object.entries(value)) {
+    if (!reference.includes("/") || reference.length > 320) continue;
+    if (typeof level === "string" && MODEL_THINKING_LEVELS.has(level)) levels[reference] = level;
+  }
+  return levels;
+}
+
+async function setModelThinkingDefault(reference, level) {
+  if (typeof reference !== "string" || !reference.includes("/") || reference.length > 320) {
+    throw new Error("模型引用无效");
+  }
+  if (level !== null && level !== undefined && level !== "") {
+    if (typeof level !== "string" || !MODEL_THINKING_LEVELS.has(level)) throw new Error("思考档位无效");
+  }
+  const paths = await loadRuntimePaths();
+  const settings = await readJsonObject(paths.settingsPath, "settings.json");
+  const levels = normalizeModelThinkingLevels(settings.modelThinkingLevels);
+  if (level) levels[reference] = level;
+  else delete levels[reference];
+  if (Object.keys(levels).length) settings.modelThinkingLevels = levels;
+  else delete settings.modelThinkingLevels;
+  await writeJsonObject(paths.settingsPath, settings);
+  let restarted = false;
+  if (agent?.child) {
+    try {
+      await restartAgentPreservingSession(true);
+      restarted = true;
+    } catch {
+      // The setting is persisted even when the runtime cannot restart.
+    }
+  }
+  return { ok: true, levels, appliedLevel: level || null, restarted };
+}
+
 async function getModelScopeState() {
   const paths = await loadRuntimePaths();
   const settings = await readJsonObject(paths.settingsPath, "settings.json");
   return {
     ok: true,
     enabledModels: Array.isArray(settings.enabledModels) ? normalizeEnabledModels(settings.enabledModels) : [],
+    modelThinkingLevels: normalizeModelThinkingLevels(settings.modelThinkingLevels),
   };
 }
 
@@ -3634,6 +3674,9 @@ ipcMain.handle("config:list-models", async () => {
 });
 ipcMain.handle("config:get-model-scope", async () => getModelScopeState());
 ipcMain.handle("config:set-model-scope", async (_event, patterns) => setModelScope(patterns));
+ipcMain.handle("config:set-model-thinking-default", async (_event, reference, level) =>
+  setModelThinkingDefault(reference, level),
+);
 
 ipcMain.handle("agent:start", async () => {
   await ensureDefaultThinkingLevels().catch(() => {});

@@ -62,6 +62,7 @@ const state = {
   modelScopeView: "scoped",
   modelScopeEditing: false,
   modelScopeDraft: [],
+  modelThinkingDefaults: {},
   thinkingLevels: [],
   commands: [],
   commandsLoaded: false,
@@ -883,13 +884,15 @@ function renderModelPopover() {
             const id = model.id || "";
             const name = modelDisplayName(model);
             const selected = current?.provider === provider && current?.id === id;
+            const defaultLevel = state.modelThinkingDefaults[`${provider}/${id}`];
+            const defaultText = defaultLevel ? ` · 默认${THINKING_LABELS[defaultLevel] || defaultLevel}` : "";
             return `<button class="popover-item${selected ? " selected" : ""}" type="button" data-provider="${escapeHtml(
               provider,
             )}" data-model="${escapeHtml(id)}"><span class="popover-item-main"><span class="popover-item-title">${escapeHtml(
               name,
-            )}</span><span class="popover-item-meta">${escapeHtml(provider)}${id && id !== name ? ` · ${escapeHtml(id)}` : ""}</span></span>${
-              selected ? '<span class="popover-check">✓</span>' : ""
-            }</button>`;
+            )}</span><span class="popover-item-meta">${escapeHtml(provider)}${id && id !== name ? ` · ${escapeHtml(id)}` : ""}${escapeHtml(
+              defaultText,
+            )}</span></span>${selected ? '<span class="popover-check">✓</span>' : ""}</button>`;
           })
           .join("");
   const thinkingSection =
@@ -910,6 +913,29 @@ function renderModelPopover() {
   const thinkingNote =
     levels.length > 1 && !levels.includes("xhigh") && !levels.includes("max")
       ? '<div class="popover-note">当前模型没有声明“极高 / 最高”档位；请在模型配置中确认推理模型的 xhigh / max 映射。</div>'
+      : "";
+  const currentReference = current?.id ? modelReference(current) : "";
+  const defaultLevel = currentReference ? state.modelThinkingDefaults[currentReference] || "" : "";
+  const defaultSection =
+    currentReference && levels.length > 1
+      ? `<div class="popover-heading popover-heading-row"><span>该模型启动默认</span><span class="popover-item-meta">${escapeHtml(
+          defaultLevel ? THINKING_LABELS[defaultLevel] || defaultLevel : "跟随全局",
+        )}</span></div><div class="model-thinking-row"><select data-model-thinking-default aria-label="该模型启动默认思考档位"><option value=""${
+          defaultLevel ? "" : " selected"
+        }>跟随全局</option>${levels
+          .map(
+            (level) =>
+              `<option value="${escapeHtml(level)}"${
+                defaultLevel === level ? " selected" : ""
+              }>${escapeHtml(THINKING_LABELS[level] || level)}</option>`,
+          )
+          .join("")}${
+          defaultLevel && !levels.includes(defaultLevel)
+            ? `<option value="${escapeHtml(defaultLevel)}" selected>${escapeHtml(
+                THINKING_LABELS[defaultLevel] || defaultLevel,
+              )}</option>`
+            : ""
+        }</select><button class="popover-cycle primary" data-save-model-thinking-default type="button">保存</button></div><div class="popover-note">写入 settings.json 的 modelThinkingLevels，保存后重启 Agent，并把当前会话同步到该档位。</div>`
       : "";
   const currentInScope =
     current &&
@@ -935,7 +961,7 @@ function renderModelPopover() {
     .join("");
   popover.innerHTML = `<div class="popover-heading popover-heading-row"><span>模型</span><span class="popover-actions">${headingActions}</span></div><div class="search-box popover-search"><input id="modelSearchInput" value="${escapeHtml(
     state.modelFilter,
-  )}" placeholder="搜索模型" autocomplete="off" spellcheck="false" /></div>${modelSection}${scopeNote}${thinkingSection}${thinkingNote}`;
+  )}" placeholder="搜索模型" autocomplete="off" spellcheck="false" /></div>${modelSection}${scopeNote}${thinkingSection}${defaultSection}${thinkingNote}`;
 }
 
 function renderPermissionPopover() {
@@ -1040,6 +1066,54 @@ async function cycleThinkingLevel() {
   await changeThinking(next);
 }
 
+async function saveModelThinkingDefault() {
+  const model = state.session?.model;
+  if (!model?.id) {
+    showToast("当前没有可配置的模型", "warning");
+    return;
+  }
+  if (state.streaming) {
+    showToast("请先停止当前任务再修改默认思考档位", "warning");
+    return;
+  }
+  if (state.queueCount > 0) {
+    showToast("请先清空排队消息再修改默认思考档位", "warning");
+    return;
+  }
+  const select = document.querySelector("[data-model-thinking-default]");
+  const level = select?.value || "";
+  const reference = modelReference(model);
+  const button = document.querySelector("[data-save-model-thinking-default]");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "保存中...";
+  }
+  try {
+    const response = await window.pispider.setModelThinkingDefault(reference, level || null);
+    if (!response?.ok) throw new Error(response?.error || "保存默认思考档位失败");
+    state.modelThinkingDefaults = response.levels || {};
+    hideComposerPopovers();
+    const restartNote = response.restarted === false ? "配置已保存，runtime 未重启" : "Agent 已重启";
+    if (level) {
+      showToast(
+        `已保存 ${modelDisplayName(model)} 的默认思考档位为${THINKING_LABELS[level] || level}，${restartNote}`,
+      );
+      const applied = await window.pispider.setThinkingLevel(level);
+      if (!applied?.success) showToast("默认档位已保存，但当前会话应用失败", "warning");
+      await refreshFromAgent();
+    } else {
+      showToast(`已清除该模型的默认思考档位，${restartNote}`);
+    }
+    await refreshAgentOptions();
+  } catch (error) {
+    showToast(error.message, "error");
+    if (button) {
+      button.disabled = false;
+      button.textContent = "保存";
+    }
+  }
+}
+
 async function changePermission(mode) {
   if (!PERMISSION_OPTIONS.some((option) => option.id === mode) || mode === state.permissionMode) {
     hideComposerPopovers();
@@ -1080,6 +1154,10 @@ async function refreshAgentOptions() {
     const levels = levelsResponse?.data?.levels;
     state.availableModels = Array.isArray(models) ? models : [];
     state.modelScope = Array.isArray(scopeResponse?.enabledModels) ? scopeResponse.enabledModels : [];
+    state.modelThinkingDefaults =
+      scopeResponse?.modelThinkingLevels && typeof scopeResponse.modelThinkingLevels === "object"
+        ? scopeResponse.modelThinkingLevels
+        : {};
     if (!state.modelScope.length) state.modelScopeView = "all";
     else if (!state.modelScopeEditing) state.modelScopeView = "scoped";
     state.thinkingLevels = visibleThinkingLevels(levels);
@@ -5897,6 +5975,10 @@ function bindEvents() {
     }
     if (event.target.closest("[data-model-scope-save]")) {
       saveModelScope();
+      return;
+    }
+    if (event.target.closest("[data-save-model-thinking-default]")) {
+      saveModelThinkingDefault();
       return;
     }
     if (event.target.closest("[data-cycle-model]")) {
