@@ -1675,6 +1675,14 @@ a:focus-visible {
   border-bottom: 1px solid var(--border-soft);
 }
 
+.diagnostic-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .panel-card-title {
   display: flex;
   align-items: center;

@@ -3109,6 +3109,25 @@ async function runDiagnostics() {
   }
 }
 
+async function exportDiagnostics() {
+  const button = $("exportDiagnosticsButton");
+  if (!button) return;
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "导出中…";
+  try {
+    const result = await API.exportDiagnostics();
+    if (result?.cancelled) return;
+    const size = result.bytes < 1024 ? `${result.bytes} B` : `${(result.bytes / 1024).toFixed(1)} KB`;
+    showMessage(`诊断报告已导出：${result.path}（${size}，${result.logEntries} 条日志）`);
+  } catch (error) {
+    showMessage(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
 async function renderStatus() {
   setHeader("状态");
   const [info, stateResponse, workspaceConfig, permission, trust, rulesData, skillsData, mcpUser, mcpProject, messagesResponse, prompt, sessionsData] =
@@ -3202,11 +3221,12 @@ async function renderStatus() {
     ${statusCard("任务", taskRows)}
     ${prompt?.ruleIssue ? statusCard("提示词问题", [{ label: "规则错误", value: prompt.ruleIssue }]) : ""}
     ${panelCardHtml("环境诊断", `<div id="diagnosticsBody">${diagnosticsRowsHtml(null)}</div>`, {
-      aside: `<button class="panel-action subtle" id="runDiagnosticsButton" type="button">运行诊断</button>`,
+      aside: `<div class="diagnostic-actions"><button class="panel-action subtle" id="exportDiagnosticsButton" type="button" title="导出包含本地路径、环境诊断和最近运行时日志的脱敏文本">导出诊断</button><button class="panel-action subtle" id="runDiagnosticsButton" type="button">运行诊断</button></div>`,
       padded: true,
     })}
   </div>`;
   bindOpenButtons();
+  $("exportDiagnosticsButton")?.addEventListener("click", exportDiagnostics);
   $("runDiagnosticsButton")?.addEventListener("click", runDiagnostics);
   void runDiagnostics();
 }

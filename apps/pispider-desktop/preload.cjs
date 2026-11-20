@@ -7,6 +7,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("pispider", {
   getInfo: () => ipcRenderer.invoke("app:info"),
   getDiagnostics: () => ipcRenderer.invoke("system:diagnostics"),
+  exportDiagnostics: (targetPath) => ipcRenderer.invoke("system:export-diagnostics", targetPath),
   listSessions: () => ipcRenderer.invoke("sessions:list"),
   getSessionOrder: () => ipcRenderer.invoke("sessions:order"),
   setSessionOrder: (items) => ipcRenderer.invoke("sessions:set-order", items),

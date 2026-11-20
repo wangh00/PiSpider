@@ -14,6 +14,7 @@ files:
   - preload.cjs
   - mcp-catalog.cjs
   - slash-helpers.cjs
+  - doctor-report.cjs
   - packaged-runtime.cjs
   - oauth-bridge.mjs
   - catalog/**/*

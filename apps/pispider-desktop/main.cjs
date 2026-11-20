@@ -36,6 +36,8 @@ const {
   readChangelogFile,
 } = require("./slash-helpers.cjs");
 
+const { redactDiagnosticText, buildDiagnosticsReport } = require("./doctor-report.cjs");
+
 const { resolvePackagedLayout, buildNodeSpawn } = require("./packaged-runtime.cjs");
 
 const packagedLayout = app.isPackaged ? resolvePackagedLayout(process.resourcesPath) : null;
@@ -65,6 +67,31 @@ let quitting = false;
 let shareInFlight = false;
 const panelWindows = new Map();
 let activeOAuthLogin = null;
+
+const DIAGNOSTIC_LOG_LIMIT = 400;
+const DIAGNOSTIC_LOG_MAX_CHARS = 200_000;
+const DIAGNOSTIC_ENTRY_MAX_CHARS = 6_000;
+const diagnosticLogEntries = [];
+let diagnosticLogChars = 0;
+
+function recordDiagnostic(level, source, message) {
+  const text = redactDiagnosticText(String(message ?? "").trim()).slice(0, DIAGNOSTIC_ENTRY_MAX_CHARS);
+  if (!text) return;
+  diagnosticLogEntries.push({
+    at: new Date().toISOString(),
+    level,
+    source,
+    text,
+  });
+  diagnosticLogChars += text.length;
+  while (
+    diagnosticLogEntries.length > DIAGNOSTIC_LOG_LIMIT ||
+    (diagnosticLogChars > DIAGNOSTIC_LOG_MAX_CHARS && diagnosticLogEntries.length > 1)
+  ) {
+    const removed = diagnosticLogEntries.shift();
+    diagnosticLogChars -= removed?.text.length || 0;
+  }
+}
 
 const OAUTH_PROVIDERS = [
   {
@@ -1942,6 +1969,74 @@ async function collectDiagnosticsData() {
   };
 }
 
+function diagnosticExportName(date = new Date()) {
+  return `pispider-diagnostics-${date.toISOString().replace(/[:.]/gu, "-")}.txt`;
+}
+
+async function exportDiagnosticsReport(requestedPath) {
+  let outputPath = typeof requestedPath === "string" ? requestedPath.trim() : "";
+  if (outputPath) {
+    outputPath = path.resolve(outputPath);
+    if (!outputPath.toLowerCase().endsWith(".txt")) outputPath += ".txt";
+  } else {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "导出诊断报告",
+      defaultPath: path.join(app.getPath("documents"), diagnosticExportName()),
+      filters: [{ name: "Text", extensions: ["txt"] }],
+    });
+    if (result.canceled || !result.filePath) return { cancelled: true };
+    outputPath = result.filePath;
+  }
+  const paths = await loadRuntimePaths();
+  let diagnostics;
+  try {
+    diagnostics = await collectDiagnosticsData();
+  } catch (error) {
+    diagnostics = { error: error.message };
+  }
+  if (diagnostics?.auth && "raw" in diagnostics.auth) {
+    const auth = { ...diagnostics.auth };
+    delete auth.raw;
+    diagnostics.auth = auth;
+  }
+  const report = {
+    generatedAt: new Date().toISOString(),
+    app: {
+      name: "PiSpider",
+      version: app.getVersion(),
+      piSpiderVersion: paths.version,
+      platform: process.platform,
+      arch: process.arch,
+      electron: process.versions.electron,
+      node: process.versions.node,
+      chrome: process.versions.chrome,
+      packaged: app.isPackaged,
+      locale: app.getLocale(),
+      repoRoot,
+      home: paths.home,
+      agentDir: paths.agentDir,
+    },
+    agent: {
+      status: agent?.status || "not-started",
+      pid: agent?.child?.pid || null,
+      commandCount: agent?.capabilities?.commands?.length || 0,
+    },
+    diagnostics,
+    logs: diagnosticLogEntries.slice(),
+  };
+  const text = buildDiagnosticsReport(report);
+  await fsp.mkdir(path.dirname(outputPath), { recursive: true });
+  await fsp.writeFile(outputPath, text, { mode: 0o600 });
+  recordDiagnostic("info", "diagnostics", `report exported · ${path.basename(outputPath)}`);
+  return {
+    ok: true,
+    path: outputPath,
+    bytes: Buffer.byteLength(text),
+    generatedAt: report.generatedAt,
+    logEntries: report.logs.length,
+  };
+}
+
 async function readJsonObject(targetPath, label) {
   let text;
   try {
@@ -3235,6 +3330,7 @@ class AgentProcess {
 
   setStatus(status, detail = "") {
     this.status = status;
+    recordDiagnostic(status === "error" ? "error" : "info", "runtime", `${status}${detail ? ` · ${detail}` : ""}`);
     send("agent:status", { state: status, detail, pid: this.child?.pid ?? null });
   }
 
@@ -3309,10 +3405,12 @@ class AgentProcess {
     child.stdout.on("data", (chunk) => this.handleStdout(chunk));
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk) => {
+      recordDiagnostic("warn", "agent.stderr", chunk);
       send("agent:log", { stream: "stderr", text: chunk });
     });
 
     child.on("error", (error) => {
+      recordDiagnostic("error", "agent.error", error.message);
       this.setStatus("error", error.message);
       send("agent:log", { stream: "error", text: error.message });
       this.rejectPending(error);
@@ -3324,6 +3422,7 @@ class AgentProcess {
       this.capabilities = { commands: [], checkedAt: null };
       this.resolveReady?.();
       const detail = signal ? `signal ${signal}` : `exit code ${code ?? "unknown"}`;
+      recordDiagnostic(code === 0 && !signal ? "info" : "error", "agent.exit", detail);
       this.setStatus(code === 0 ? "stopped" : "error", `Runtime ${detail}`);
       this.rejectPending(new Error(`PiSpider runtime stopped: ${detail}`));
       if (!quitting && !this.restarting) {
@@ -3758,6 +3857,7 @@ ipcMain.handle("app:info", async () => {
 });
 
 ipcMain.handle("system:diagnostics", async () => collectDiagnosticsData());
+ipcMain.handle("system:export-diagnostics", async (_event, targetPath) => exportDiagnosticsReport(targetPath));
 
 ipcMain.handle("app:copy-text", async (_event, text) => {
   clipboard.writeText(String(text ?? ""));
