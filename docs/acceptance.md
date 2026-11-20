@@ -525,6 +525,56 @@ npm run pispider:desktop
 - 会话树分支节点删除仍阻塞上游 entry 删除 / 重排 API，本轮只做侧栏列表展示排序。
 - `listSessions()` 仍截断 80 条，手动序超过 80 条的会话不会出现在侧栏。
 
+## 12. 高级 settings（2026-11-20）
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/main.cjs` | 新增 `SETTINGS_TRANSPORTS` / `COMPACTION_DEFAULTS`、`normalizeHttpProxySetting()` / `normalizeShellPathSetting()` / `normalizeDefaultToolsSetting()` / `normalizeCompactionSetting()`；新增 `config:get-advanced` / `config:set-advanced`，读写 `settings.json` 的 `transport` / `httpProxy` / `shellPath` / `defaultTools` / `compaction`，保存后重启并保留会话 |
+| `apps/pispider-desktop/preload.cjs` | 暴露 `getAdvancedSettings()` / `setAdvancedSettings(input)` |
+| `apps/pispider-desktop/renderer/panel.js` | `renderSettings()` 拉取高级设置并渲染 `advanced-card`；新增传输协议、HTTP 代理、Shell 路径、默认工具多行输入、压缩开关与 token 参数；保存前做整数校验，保存后提示重启结果 |
+| `apps/pispider-desktop/renderer/panel.css` | 高级设置分区标题、工具输入框、状态路径与主按钮样式 |
+| `apps/pispider-desktop/README.md` | 设置窗口能力补“高级设置”段 |
+| `docs/desktop-parity.md` | §6 高级 settings 行改为已接；§7 P1-8 标记完成 |
+| `docs/desktop-status.md` | 已落地能力新增“高级 settings”；P1-8 标记完成；阅读顺序加 §12 |
+| `docs/desktop-ui.md` | §5 新增高级设置卡实现与 CDP 记录 |
+| `docs/architecture.md` | 更新高级设置写入路径说明 |
+
+### 行为
+
+- 字段映射：`transport` 白名单 `auto / sse / websocket / websocket-cached`；`httpProxy` 只接受 `http(s)` URL；`shellPath` 原样保存，允许 `~` 与空格；`defaultTools` 支持“纯名称替换默认集合”或“全部为 `+名称` / `-名称` 的增删列表”，两者不能混用，修饰项不允许通配符；`compaction` 写 `enabled / reserveTokens / keepRecentTokens`。
+- 空值处理：代理 / Shell / 工具列表留空时删除对应字段；`transport` 即使选择 `auto` 也显式写入，以便覆盖项目级设置。
+- `compaction.modelOverrides` 与 `compaction` 下其他未知字段在保存时原样保留。
+- 保存成功后若 Agent 正在运行，调用 `restartAgentPreservingSession(true)` 并恢复当前 `sessionFile`；重启失败仍保留配置，返回 `restarted:false` 与 `restartError`。
+- 项目级 `.pi/settings.json` 不在此卡读取或写入；同名键仍可能覆盖用户级值。
+
+### 验证（隔离开发实例，CDP 9348）
+
+- 初始卡：`transport=auto`、代理 / Shell / 工具为空、`compaction=16384/20000`，保存按钮“保存并重启 Agent”，状态行显示临时 `ui-home/agent/settings.json`。
+- 直接调用 `setAdvancedSettings` 写 `websocket`、`http://127.0.0.1:7890`、`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`、`+grep/-write`、压缩关闭 `12000/9000`：返回 `restarted:true`，`settings.json` 结构一致；重新读取后值不变。
+- UI 保存：把协议改为 `sse`、代理 `http://127.0.0.1:10809`、Shell `cmd.exe`、工具 `read/bash/grep`、压缩开启 `10000/8000` 后点击按钮，约 1.1 秒完成，按钮恢复，磁盘与读取结果一致。
+- 非法值：`ftp://` 代理返回“代理仅支持 http:// 或 https:// 地址”；纯名称与 `+grep` 混用返回“工具名称不能与 +名称 / -名称 混用”；`+*` 返回“+名称 / -名称 不支持通配符”；负 token 返回“预留 tokens 必须是非负整数”；`tcp` 返回“传输协议无效”。
+- 逐模型覆盖：手工写入 `compaction.modelOverrides["faux/model-a"].reserveTokens=5000` 后保存 `enabled:false / 11000 / 7000`，读取 `hasModelOverrides=true`，磁盘仍保留该覆盖项。
+- 清空保存：协议 `auto`、代理 / Shell / 工具为空、压缩 `true / 16384 / 20000`，磁盘删除对应字段，`transport:"auto"` 保留，`modelOverrides` 仍在。
+- 设置页滚动到高级卡并截图检查：两列连接字段、全宽 Shell、工具多行框、压缩三列、底部路径与黑色保存按钮均无溢出。
+- 验证后停止隔离 Electron，删除临时 `ui-home` / `ui-userdata`，未触碰真实 `~/.pispider`。
+
+### 自动化检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0（2575 文件，无修复） |
+| 2 | `npm run pispider:check` | exit 0 |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `cd apps/pispider-desktop; npm test` | 43/43 pass |
+
+### 遗留
+
+- 高级设置仍由主进程直接写 `settings.json`，没有走 RPC；与 CLI 同时修改配置时仍有覆盖风险。
+- 项目级 `.pi/settings.json` 的同名键会覆盖用户级，本轮未做“有效值合并”展示。
+- 打包产物仍未重建；开发版加载新代码，便携版 / 安装包需要 `npm run dist:win`。
+
 
 
 

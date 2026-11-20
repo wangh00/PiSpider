@@ -123,7 +123,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 
 | 能力 | Desktop | 状态 | 说明 |
 | --- | --- | --- | --- |
-| Pi 高级 settings | 只覆盖模型 / 领域 / 提示词 / 会话思考强度、自动压缩和自动重试 | 部分 | proxy、transport、shell、tool 选择等仍要手改 |
+| Pi 高级 settings | 设置 → 高级设置卡：transport、HTTP proxy、shell path、defaultTools、compaction 开关与 token 参数 | 已接 | 写用户级 `settings.json`，保存后重启 Agent；compaction `modelOverrides` 原样保留；项目级 `.pi/settings.json` 仍可能覆盖 |
 | doctor / 诊断日志 | 状态 → 环境诊断 | 部分 | 通过 Pi core CLI 检查版本、当前 provider / model 的认证状态、`pi list` 的 package 声明，并汇总 Node / Electron、配置文件、项目资源与权限；不提供日志导出、网络诊断或 `pi doctor` 的完整检查项 |
 | Pi / 包更新 | 无 | 部分 | Windows x64 NSIS 安装包 `PiSpider Setup <version>.exe` 已由 electron-builder 26.18.0 构建产出（非 oneClick、perMachine=false），安装流程本身尚未执行安装冒烟；`win-unpacked/PiSpider.exe` 经最小 PATH + CDP 只读冒烟验证；应用图标接入 `build/icon.ico`。未做：代码签名、自动更新、macOS / Linux 目标、portable 单文件目标；Pi / 包自身更新仍无入口 |
 | print / JSON / RPC / SDK 模式 | 不适用 | 不适用 | 桌面本身通过 RPC 驱动 runtime，不需要给用户暴露这些 CLI 输出模式 |
@@ -160,7 +160,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 1. `/share` Radius artifact 与分享目的地设置（Gist 路径已有）：目的地配置字段上游 schema 已存在；Radius artifact 生成 / 发布路径阻塞上游。
 2. 会话树节点删除 / 排序：排序已完成（侧栏“排序任务”模式，拖动或 `Alt+↑/↓` 调整，展示序持久化 `desktop.json.sessionOrder`，复用置顶分组，不写上游会话文件）；分支节点删除仍阻塞上游 entry 变更 API / RPC；整文件删除是桌面自有文件操作。
 3. 逐模型思考档位 UI：已完成。模型弹层内为当前模型选择启动默认档位，写 `settings.json.modelThinkingLevels`（精确 `provider/modelId`），保存后重启 Agent 并把当前会话同步到该档位；可清除回“跟随全局”。
-4. 高级 settings（proxy / transport / shell / 细粒度 allowlist / compaction 参数）：桌面可独立做；上游 schema 字段已具备，缺 RPC 写入口，走配置文件 + 重启 runtime 既有模式，注意 schema 校验与重启生效时机。
+4. 高级 settings（proxy / transport / shell / 细粒度 allowlist / compaction 参数）：已完成。设置窗口“高级设置”卡读写用户级 `settings.json`：`transport`、`httpProxy`、`shellPath`、`defaultTools`（纯名称 / `+` / `-` 语义）与 `compaction.enabled` / `reserveTokens` / `keepRecentTokens`，保存后重启 Agent；`compaction.modelOverrides` 保留。项目级 `.pi/settings.json` 仍可覆盖同名键。
 5. MCP 单工具运行态订阅：服务器级连接 live state 已接（RPC `mcp_status` 快照 + `mcp_status_changed` 推送原地更新）；单工具运行时状态订阅仍缺上游数据，`McpLiveServerStatus.tools` 仅为工具名数组，无单工具运行 / 可用状态字段。
 6. CORE_VERSION 三处同步升级流程（`scripts/pispider-launcher.mjs`、`scripts/prepare-packaged-runtime.mjs`、`packaged-runtime.cjs`）与 `package.json` 缺失 `author` 警告：桌面可独立做（打包维护性）。
 7. 打包版 stdio 预置 MCP 的 npm 方案：随包 npm-cli 或维持现有 npm CLI 缺失降级，属体积权衡；桌面可独立做。
