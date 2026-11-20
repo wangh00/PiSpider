@@ -114,7 +114,7 @@ cd apps/pispider-desktop
 npm run dist:win
 ```
 
-`dist:win` 先跑 `prepare:packaged` 幂等重建 `build/packaged/` staging（launcher closure + core runtime 缓存副本，自检通过才退出），再执行 `electron-builder --win`；staging 可随时由 `dist:win` 重新生成，无需手工保留。首次构建会把 nsis / winCodeSign 下载到 electron-builder 本地工具缓存，属正常工具缓存。
+`dist:win` 先跑 `prepare:packaged` 幂等重建 `build/packaged/` staging（launcher closure + core runtime 缓存副本 + npm 10.9.8 CLI，自检通过才退出），再执行 `electron-builder --win`；staging 可随时由 `dist:win` 重新生成，无需手工保留。构建机必须使用 npm 10.9.8；版本不符时 staging 直接失败。首次构建会把 nsis / winCodeSign 下载到 electron-builder 本地工具缓存，属正常工具缓存。
 
 产物落在 `apps/pispider-desktop/release/`：
 
@@ -134,17 +134,18 @@ resources/
     packages/pispider/             # PiSpider 扩展 closure（src / resources / vendor）
   runtime/
     core-1.5.2/                    # 完整 core 缓存副本（node_modules + npmrc）
+  npm/                             # npm 10.9.8 CLI + node_modules + LICENSE
 ```
 
 运行时方案（打包分支）：
 
 - 三处 Agent 子进程 spawn 都用 `process.execPath`（随包 `PiSpider.exe`）加 `ELECTRON_RUN_AS_NODE=1` 复用 Electron 二进制作为 Node，不依赖系统 Node；`PISPIDER_CORE_CACHE` 在进程级早设，指向 `resources/runtime/core-1.5.2`。
 - launcher 据此解析为 runtime 模式（`cached core 1.5.2`），直接加载随包 core CLI；只有随包缓存缺失时才回退 install 计划。冒烟在只含 Windows 系统目录的最小 PATH（无 node/npm）下验证 RPC ready，即证明未回退系统 Node。
-- 版本化子目录是必要布局：electron-builder 默认排除 extraResources 源目录根级的 `node_modules`，随包依赖必须放在 `core-<version>/` 这类子目录下。
+- 版本化子目录是必要布局：electron-builder 默认排除 extraResources 源目录根级的 `node_modules`，随包依赖必须放在 `core-<version>/` 这类子目录下。npm 依赖单独以 `build/packaged/npm/node_modules -> npm/node_modules` 复制，绕开同一排除规则。
 
 MCP 与离线降级：
 
-- stdio 预置 MCP 懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`；本机读不到 npm CLI 时，目录与命令列表走可读的中文降级提示，不报错崩溃。
+- stdio 预置 MCP 懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`；安装优先用 `resources/npm/bin/npm-cli.js`，由 `PiSpider.exe` 加 `ELECTRON_RUN_AS_NODE=1` 执行，其次回退系统 PATH npm；两者都缺失时，目录与命令列表走可读的中文降级提示，不报错崩溃。
 - 打包实例与 dev 实例共享 `PISPIDER_HOME/agent` 下的会话与配置；Electron userData profile 按 productName 隔离，localStorage / 主题互不影响。
 
 尚未做：可执行文件与安装包代码签名、electron-updater 自动更新、macOS / Linux 目标、portable 单文件目标。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。升级随包 core 用 `npm run pispider:core-version -- <x.y.z>` 同步三处 `CORE_VERSION`，根 `npm run check` 与 `npm run pispider:check` 会校验一致性。

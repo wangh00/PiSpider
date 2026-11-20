@@ -676,6 +676,52 @@ npm run pispider:desktop
 - `author` 使用仓库账号 `wangh00`；如果要发布到 npm / 应用商店，后续可补邮箱或组织名。
 - 打包产物的 electron-builder 警告未通过实际构建复验，本轮只确认 manifest 字段已存在。
 
+## 15. 打包版 MCP npm 方案（2026-11-20）
+
+### 目标与策略
+
+- 解决打包版 stdio 预置 MCP 一键安装拿不到 npm 的问题。开发版 `packaged=false` 时，`npmInvocation()` 通过 `npm_execpath` 或 Node 目录找到 npm；打包版 Electron 目录没有 npm，旧逻辑直接返回“未附带 npm”。
+- 采用 A+B：随包 npm CLI 为主，系统 PATH npm 兜底。随包 npm 固定 `10.9.8`，整体复制包目录（含 `node_modules` 与 `LICENSE`），不执行网络下载或 lifecycle script。
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/packaged-runtime.cjs` | `resolvePackagedLayout()` 增加 `npmCliPath: resources/npm/bin/npm-cli.js`；`detectNpmCli()` 候选顺序改为 bundled npm → `npm_execpath` → Node 目录 → POSIX `lib/node_modules`；缺失提示改为“随包 npm 缺失且系统 PATH 中没有 npm”。 |
+| `apps/pispider-desktop/mcp-catalog.cjs` | `npmInvocation()` 优先 bundled npm，经 `nodeExecutable` + `ELECTRON_RUN_AS_NODE=1` 执行；新增 `findSystemNpm()` 直接扫描 PATH 中的 `npm.cmd` / `npm.exe` / `npm.bat` / `npm`，优先解析同级 `node_modules/npm/bin/npm-cli.js`，避免在缺 npm 时启动 shell 报错；两条路径都没有时 `installCatalogEntry()` 返回结构化中文错误，不写配置。 |
+| `apps/pispider-desktop/main.cjs` | `installCatalogEntry()` 调用从 `{ packaged }` 改为 `{ bundledNpmCli: packagedLayout?.npmCliPath ?? "" }`。 |
+| `apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs` | staging 新增 `build/packaged/npm`；`resolveNpmPackageRoot()` 从 `npm_execpath` / Node 安装目录解析 npm 包，并校验版本为 `10.9.8`；自检增加 `npm/bin/npm-cli.js`、`npm/package.json`、`npm/LICENSE`。 |
+| `apps/pispider-desktop/electron-builder.yml` | `extraResources` 增加 `build/packaged/npm -> npm`；另加 `build/packaged/npm/node_modules -> npm/node_modules`，绕开 electron-builder 对 extraResources 根级 `node_modules` 的默认排除。 |
+| `scripts/check-pinned-deps.mjs` | 忽略 `.artifacts`、`build`、`release` 生成目录，避免随包 npm 的 caret 依赖触发仓库 pin 检查。 |
+| `apps/pispider-desktop/test/packaged-runtime.test.mjs` | layout 断言 `npmCliPath`；新增 bundled npm 优先级测试，保留 `npm_execpath` 回退测试。 |
+| `apps/pispider-desktop/test/catalog.test.mjs` | 新增无 npm 场景测试：清空 PATH 与 `npm_execpath`，`installCatalogEntry()` 返回 `success:false` 和中文提示，不执行 shell。 |
+
+### 行为
+
+- 打包版安装顺序：`resources/npm/bin/npm-cli.js` → 系统 PATH npm → 结构化失败。
+- bundled npm 与系统 npm-cli.js 都由 `nodeExecutable`（打包版为 `PiSpider.exe`）执行；若该 executable 是当前 Electron，子进程环境补 `ELECTRON_RUN_AS_NODE=1`，不需要系统 Node。
+- Windows 系统 npm 兜底不会执行裸 `npm`：先扫描 PATH 中的 shim，能找到同级 `npm-cli.js` 时直接走 Node；只有 shim 无 CLI 时才用 shell，避免缺 npm 时抛出难读的 `'npm' 不是内部或外部命令`。
+- 安装目录仍是 `~/.pispider/agent/mcp-packages/<catalog-id>`；MCP server 的 `command` 仍是 `PiSpider.exe`，`env` 补 `ELECTRON_RUN_AS_NODE=1`。
+- 随包 npm 许可证位于 `resources/npm/LICENSE`；安装包体积增加约 2.5 MB（压缩后），`resources/npm` 约 11.2 MB（未压缩）。
+
+### 验证
+
+- `npm run prepare:packaged`：成功复制 npm 10.9.8，self-test 通过。
+- 打包后 `resources/npm/bin/npm-cli.js` 存在，`node_modules` 153 个条目；用 `PiSpider.exe` + `ELECTRON_RUN_AS_NODE=1` 执行 `npm-cli.js --version` 输出 `10.9.8`。
+- 打包实例（`release/win-unpacked/PiSpider.exe`，隔离 `PISPIDER_HOME`，PATH 仅 `C:\Windows\System32;C:\Windows`，无 Node/npm）通过 CDP 触发 `startMcpCatalog('chrome-devtools','user',{})`：安装成功，生成 `mcp.json`；`inspectCatalogEntry` 返回 `1.13.0`，bin 存在。
+- 同一打包实例 `checkMcp('chrome-devtools','user')`：`success:true`，服务器 `state:"connected"`，返回 33 个工具（含 `navigate_page`、`take_snapshot`、`performance_start_trace` 等）。
+- 单测 `installCatalogEntry reports missing npm without invoking a shell`：PATH 为空、无 bundled npm 时返回 `success:false`，错误包含“npm”和“mcp.json”。
+- `npm run dist:win` 成功；`PiSpider Setup 0.1.0.exe` 为 156,384,972 bytes；`win-unpacked/resources/npm` 为 11,189,466 bytes。
+- 桌面测试 48/48；根 `npm run check` exit 0。
+
+### 遗留
+
+- 构建机必须提供 npm 10.9.8；版本不符时 `prepare:packaged` 直接失败，暂不自动下载固定 npm。
+- 仅验证 Windows x64；macOS / Linux 打包未验证。
+- npm 许可证只随文件分发，安装包未增加许可证展示页。
+- 系统 PATH npm 兜底在 Windows 上优先解析同目录 npm-cli.js；若发行版把 npm 装到非标准布局且无同级 CLI，仍会走 shell shim 路径。
+
+
 
 
 

@@ -62,7 +62,7 @@ cd apps/pispider-desktop
 npm run dist:win
 ```
 
-`dist:win` 先执行 `prepare:packaged`（`scripts/prepare-packaged-runtime.mjs`）幂等重建 `build/packaged/` staging：launcher closure（`scripts/` + `packages/pispider/`）和完整 core 1.5.2 缓存副本；自检通过后再由 electron-builder 26.18.0 产出 NSIS 安装包。首次构建会下载 nsis / winCodeSign 到 electron-builder 本地缓存。
+`dist:win` 先执行 `prepare:packaged`（`scripts/prepare-packaged-runtime.mjs`）幂等重建 `build/packaged/` staging：launcher closure（`scripts/` + `packages/pispider/`）、完整 core 1.5.2 缓存副本，以及 npm 10.9.8 CLI（含依赖）；自检通过后再由 electron-builder 26.18.0 产出 NSIS 安装包。首次构建会下载 nsis / winCodeSign 到 electron-builder 本地缓存。
 
 升级随包 Pi core 时用 `npm run pispider:core-version -- 1.5.3` 同步 `scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs` 和 `packaged-runtime.cjs` 三处 `CORE_VERSION`；`npm run check:core-version` 校验一致性，根 `npm run check` 已包含该检查。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。
 
@@ -79,13 +79,14 @@ resources/
   app.asar.unpacked/oauth-bridge.mjs
   launcher/                        # scripts + packages/pispider closure
   runtime/core-1.5.2/              # 完整 core 缓存副本（node_modules + npmrc）
+  npm/                             # npm 10.9.8 CLI + node_modules + LICENSE
 ```
 
 打包运行时方案：
 
 - 打包分支三处 spawn 用 `process.execPath` + `ELECTRON_RUN_AS_NODE=1`，复用随包 Electron 二进制作为 Node；`PISPIDER_CORE_CACHE` 进程级早设指向 `resources/runtime/core-1.5.2`，launcher 解析为 runtime 模式（`cached core 1.5.2`），不回退系统 Node。
 - 随包依赖必须放在版本化子目录下：electron-builder 默认排除 extraResources 源目录根级的 `node_modules`。
-- MCP stdio 预置懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`；读不到 npm CLI 时目录与命令列表走可读中文降级。
+- MCP stdio 预置懒安装到 `~/.pispider/agent/mcp-packages/<catalog-id>`。安装时优先用 `resources/npm/bin/npm-cli.js`（通过 `PiSpider.exe` + `ELECTRON_RUN_AS_NODE=1` 执行），其次用系统 PATH 中的 npm；两者都没有时目录与命令列表显示可读中文降级。随包 npm 固定为 10.9.8，许可证随 `resources/npm/LICENSE` 分发。
 - 打包实例与 dev 实例共享 `PISPIDER_HOME/agent` 会话与配置；Electron userData profile 按 productName 隔离，localStorage / 主题互不影响。
 
 未做：代码签名、electron-updater 自动更新、macOS / Linux 目标、portable 单文件目标。
