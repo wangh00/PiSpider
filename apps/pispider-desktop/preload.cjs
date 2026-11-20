@@ -103,6 +103,9 @@ contextBridge.exposeInMainWorld("pispider", {
   abortRetry: () => ipcRenderer.invoke("agent:abort-retry"),
 
   setTheme: (theme) => ipcRenderer.invoke("theme:set", theme),
+  getTheme: () => ipcRenderer.invoke("theme:get"),
+  importTheme: () => ipcRenderer.invoke("theme:import"),
+  resetTheme: () => ipcRenderer.invoke("theme:reset"),
   openExternal: (url) => ipcRenderer.invoke("shell:open-external", url),
   openPath: (targetPath) => ipcRenderer.invoke("shell:open-path", targetPath),
   copyText: (text) => ipcRenderer.invoke("app:copy-text", text),
@@ -164,6 +167,11 @@ contextBridge.exposeInMainWorld("pispider", {
     const listener = (_event, theme) => callback(theme);
     ipcRenderer.on("theme:changed", listener);
     return () => ipcRenderer.removeListener("theme:changed", listener);
+  },
+  onCustomTheme: (callback) => {
+    const listener = (_event, theme) => callback(theme);
+    ipcRenderer.on("theme:custom-changed", listener);
+    return () => ipcRenderer.removeListener("theme:custom-changed", listener);
   },
   onModelChanged: (callback) => {
     const listener = (_event, payload) => callback(payload);

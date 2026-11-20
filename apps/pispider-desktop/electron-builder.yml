@@ -13,6 +13,8 @@ files:
   - main.cjs
   - preload.cjs
   - mcp-catalog.cjs
+  - mcp-tool-runtime.cjs
+  - theme-store.cjs
   - slash-helpers.cjs
   - doctor-report.cjs
   - packaged-runtime.cjs
@@ -35,10 +37,15 @@ extraResources:
     to: npm/node_modules
 
 win:
-  target: nsis
+  target:
+    - nsis
+    - portable
   icon: build/icon.ico
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+
+portable:
+  artifactName: "PiSpider Portable ${version}.exe"

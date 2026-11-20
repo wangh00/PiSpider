@@ -511,9 +511,9 @@ a:hover {
 .session-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   width: 100%;
-  padding: 9px 10px;
+  padding: 8px 10px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -779,15 +779,6 @@ a:hover {
   white-space: nowrap;
 }
 
-.session-preview {
-  overflow: hidden;
-  color: var(--muted-2);
-  font-size: 10.5px;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .session-search-summary {
   display: flex;
   align-items: center;
@@ -824,26 +815,6 @@ a:hover {
 .session-search-sort button.active {
   background: var(--panel);
   color: var(--text);
-}
-
-.session-preview.search-preview {
-  display: -webkit-box;
-  overflow: hidden;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.session-match-field {
-  display: inline-block;
-  margin-right: 5px;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 9px;
-  line-height: 1.6;
-  vertical-align: 1px;
 }
 
 .search-error {
@@ -1200,7 +1171,7 @@ a:hover {
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition: border-color 150ms ease, background 150ms ease;
+  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease;
 }
 
 .starter-card:hover {
@@ -1327,7 +1298,7 @@ a:hover {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-2px);
-  transition: opacity 120ms ease, transform 120ms ease, color 120ms ease, border-color 120ms ease;
+  transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease;
 }
 
 .message:hover .message-copy,
@@ -1710,7 +1681,7 @@ a:hover {
   border: 1px solid var(--hairline);
   border-radius: 9px;
   background: var(--panel);
-  transition: border-color 160ms ease;
+  transition: border-color var(--motion-fast) ease;
 }
 
 .action-group {
@@ -1718,7 +1689,7 @@ a:hover {
   border: 1px solid var(--hairline);
   border-radius: 9px;
   background: var(--panel);
-  transition: border-color 160ms ease;
+  transition: border-color var(--motion-fast) ease;
 }
 
 .action-group:hover {
@@ -1791,7 +1762,7 @@ a:hover {
   display: inline-flex;
   flex: none;
   color: var(--muted-2);
-  transition: transform 140ms ease;
+  transition: transform var(--motion-fast) ease;
 }
 
 .action-group[open] .action-group-chevron {
@@ -1906,7 +1877,7 @@ a:hover {
   display: inline-flex;
   flex: none;
   color: var(--muted-2);
-  transition: transform 140ms ease;
+  transition: transform var(--motion-fast) ease;
 }
 
 .turn-card[open] .turn-chevron {
@@ -2139,7 +2110,7 @@ a:hover {
   border: 1px solid var(--hairline);
   border-radius: 13px;
   background: var(--chat-bg);
-  transition: border-color 150ms ease;
+  transition: border-color var(--motion-fast) ease;
   position: relative;
 }
 
@@ -2408,7 +2379,7 @@ a:hover {
 
 .context-ring-fill {
   stroke: var(--accent);
-  transition: stroke-dashoffset 180ms ease, stroke 180ms ease;
+  transition: stroke-dashoffset var(--motion-base) ease, stroke var(--motion-base) ease;
 }
 
 .composer-context.warn .context-ring-fill {
@@ -3278,7 +3249,7 @@ a:hover {
   opacity: 0;
   pointer-events: none;
   transform: translateY(6px);
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
 }
 
 .toast.visible {
@@ -3758,7 +3729,7 @@ a:hover {
   color: var(--text-soft);
   font-size: 13px;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 
 .extension-button:hover {
@@ -3922,9 +3893,9 @@ a:hover {
   padding: 9px 11px;
   border-radius: 9px;
   transition:
-    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    border-color 180ms ease,
-    background 180ms ease;
+    transform var(--motion-base) var(--ease-soft),
+    border-color var(--motion-base) ease,
+    background var(--motion-base) ease;
 }
 
 .starter-card:hover {
@@ -3934,8 +3905,8 @@ a:hover {
 .composer {
   border-radius: 14px;
   transition:
-    border-color 180ms ease,
-    transform 180ms ease;
+    border-color var(--motion-base) ease,
+    transform var(--motion-base) ease;
 }
 
 .composer-shell {
@@ -3947,9 +3918,9 @@ a:hover {
   height: 32px;
   border-radius: 50%;
   transition:
-    background 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) ease;
 }
 
 .send-button:hover {
@@ -3972,10 +3943,10 @@ a:hover {
 .sidebar .project-row,
 .sidebar .footer-settings {
   transition:
-    background 160ms ease,
-    color 160ms ease,
-    transform 160ms ease,
-    border-color 160ms ease;
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
 }
 
 .sidebar .nav-item:hover,
@@ -3992,10 +3963,10 @@ a:hover {
   opacity: 1;
   transform: translateX(0);
   transition:
-    width 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    flex-basis 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 180ms ease,
-    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    width var(--motion-panel) var(--ease-soft),
+    flex-basis var(--motion-panel) var(--ease-soft),
+    opacity var(--motion-base) ease,
+    transform var(--motion-panel) var(--ease-soft);
 }
 
 .app-body.panel-hidden .context-panel {
@@ -4025,7 +3996,7 @@ a:hover {
 .context-tab {
   padding: 6px 9px 8px;
   border-radius: 6px 6px 0 0;
-  transition: background 150ms ease, color 150ms ease;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 
 .context-tab.active {
@@ -4370,7 +4341,7 @@ a:hover {
   color: var(--text-soft);
   font-size: 11px;
   cursor: pointer;
-  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease, transform var(--motion-fast) ease;
 }
 
 .code-open-button:hover {
@@ -4522,10 +4493,6 @@ a:hover {
 
 .session-time {
   font-size: 11px;
-}
-
-.session-preview {
-  font-size: 12px;
 }
 
 .thread-heading h1 {

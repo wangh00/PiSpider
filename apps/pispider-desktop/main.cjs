@@ -30,6 +30,7 @@ const {
 } = require("./mcp-catalog.cjs");
 
 const { createMcpToolRuntimeTracker } = require("./mcp-tool-runtime.cjs");
+const { normalizeCustomTheme } = require("./theme-store.cjs");
 
 const {
   validateHtmlExportPath,
@@ -69,6 +70,7 @@ let quitting = false;
 let shareInFlight = false;
 const panelWindows = new Map();
 let activeOAuthLogin = null;
+let customTheme = null;
 const mcpToolRuntime = createMcpToolRuntimeTracker();
 
 const DIAGNOSTIC_LOG_LIMIT = 400;
@@ -215,6 +217,31 @@ function setWindowTheme(theme) {
       height: 44,
     });
   }
+}
+
+async function loadCustomTheme() {
+  const settings = await readDesktopSettings().catch(() => ({}));
+  try {
+    customTheme = settings.customTheme ? normalizeCustomTheme(settings.customTheme) : null;
+  } catch {
+    customTheme = null;
+  }
+}
+
+function broadcastCustomTheme() {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send("theme:custom-changed", customTheme);
+  }
+}
+
+function setThemeMode(theme) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  nativeTheme.themeSource = nextTheme;
+  setWindowTheme(nextTheme);
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send("theme:changed", nextTheme);
+  }
+  return nextTheme;
 }
 
 const ZOOM_MIN = 0.7;
@@ -4342,14 +4369,55 @@ ipcMain.handle("agent:extension-ui-response", async (_event, id, payload) => {
   const sent = ensureAgent().sendRecord(response);
   return sent ? { ok: true } : { ok: false, error: "PiSpider runtime is not running" };
 });
-ipcMain.handle("theme:set", (_event, theme) => {
-  const nextTheme = theme === "dark" ? "dark" : "light";
-  nativeTheme.themeSource = nextTheme;
-  setWindowTheme(nextTheme);
-  for (const win of panelWindows.values()) {
-    if (win.isDestroyed()) continue;
-    win.webContents.send("theme:changed", nextTheme);
+ipcMain.handle("theme:get", () => {
+  return { ok: true, customTheme };
+});
+ipcMain.handle("theme:import", async (event) => {
+  try {
+    const options = {
+      title: "导入 PiSpider 主题",
+      filters: [{ name: "PiSpider 主题", extensions: ["json"] }],
+      properties: ["openFile"],
+    };
+    const parent = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options);
+    if (result.canceled || !result.filePaths[0]) return { ok: false, cancelled: true };
+    const filePath = result.filePaths[0];
+    const stat = await fsp.stat(filePath);
+    if (stat.size > 64 * 1024) throw new Error("主题文件不能超过 64 KB");
+    const text = await fsp.readFile(filePath, "utf8");
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (error) {
+      throw new Error(`主题 JSON 解析失败：${error.message}`);
+    }
+    const theme = normalizeCustomTheme(parsed);
+    const settings = await readDesktopSettings();
+    settings.customTheme = theme;
+    await writeDesktopSettings(settings);
+    customTheme = theme;
+    if (theme.defaultMode) setThemeMode(theme.defaultMode);
+    broadcastCustomTheme();
+    return { ok: true, customTheme };
+  } catch (error) {
+    return { ok: false, error: error.message || "导入主题失败" };
   }
+});
+ipcMain.handle("theme:reset", async () => {
+  try {
+    const settings = await readDesktopSettings();
+    delete settings.customTheme;
+    await writeDesktopSettings(settings);
+    customTheme = null;
+    broadcastCustomTheme();
+    return { ok: true, customTheme: null };
+  } catch (error) {
+    return { ok: false, error: error.message || "恢复主题失败" };
+  }
+});
+ipcMain.handle("theme:set", (_event, theme) => {
+  const nextTheme = setThemeMode(theme);
   return { ok: true, theme: nextTheme };
 });
 ipcMain.handle("shell:open-external", async (_event, url) => {
@@ -4580,6 +4648,7 @@ if (!gotSingleInstanceLock) {
 
 app.whenReady().then(async () => {
   nativeTheme.themeSource = "light";
+  await loadCustomTheme();
   await createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow().catch(() => {});

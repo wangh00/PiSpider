@@ -11,10 +11,28 @@ const API = window.pispider;
 const params = new URLSearchParams(window.location.search);
 const kind = params.get("kind") || "rules";
 const initialTheme = params.get("theme") === "dark" ? "dark" : "light";
-document.documentElement.dataset.theme = initialTheme;
+let customTheme = null;
+
+function applyPanelTheme(theme) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = nextTheme;
+  window.PiSpiderTheme?.apply(customTheme, nextTheme);
+}
+
+applyPanelTheme(initialTheme);
 API.onTheme((theme) => {
-  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+  applyPanelTheme(theme);
 });
+API.onCustomTheme((theme) => {
+  customTheme = theme || null;
+  applyPanelTheme(document.documentElement.dataset.theme);
+});
+API.getTheme?.()
+  .then((response) => {
+    customTheme = response?.customTheme || null;
+    applyPanelTheme(document.documentElement.dataset.theme);
+  })
+  .catch(() => {});
 API.onResourcesChanged((payload) => {
   if (payload?.kind === "mcp" && kind === "mcp") {
     load().catch((error) => showMessage(error.message, true));
@@ -229,7 +247,9 @@ async function openPath(targetPath) {
 
 function setHeader(title, subtitle) {
   $("panelTitle").textContent = title;
-  $("panelMeta").textContent = subtitle || "";
+  const meta = $("panelMeta");
+  meta.textContent = subtitle || "";
+  meta.hidden = !subtitle;
   document.title = `PiSpider · ${title}`;
 }
 
@@ -2582,6 +2602,34 @@ function bindWorkspaceForm(config) {
   manageRules.addEventListener("click", () => API.openPanel("rules"));
 }
 
+function themeSettingsCardHtml(theme) {
+  return window.PiSpiderThemeCard.html(theme);
+}
+
+function bindThemeSettings() {
+  $("importThemeButton")?.addEventListener("click", async () => {
+    try {
+      const response = await API.importTheme();
+      if (response?.cancelled) return;
+      if (!response?.ok) throw new Error(response?.error || "导入主题失败");
+      await renderSettings();
+      showMessage(`已应用主题：${response.customTheme?.name || "自定义主题"}`);
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  });
+  $("resetThemeButton")?.addEventListener("click", async () => {
+    try {
+      const response = await API.resetTheme();
+      if (!response?.ok) throw new Error(response?.error || "恢复主题失败");
+      await renderSettings();
+      showMessage("已恢复内置主题");
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  });
+}
+
 function advancedSettingsCardHtml(advanced, settingsPath) {
   const transport = advanced?.transport || "auto";
   const compaction = advanced?.compaction || {};
@@ -2977,6 +3025,7 @@ async function renderSettings() {
   let promptTemplates = { templates: [], dirs: {} };
   let projectTrust = { mode: "ask" };
   let advancedSettings = null;
+  let themeState = null;
   try {
     state = await API.getModelConfig();
     modelConfigState = state;
@@ -3010,12 +3059,18 @@ async function renderSettings() {
   } catch (error) {
     showMessage(error.message, true);
   }
+  try {
+    themeState = await API.getTheme();
+  } catch (error) {
+    showMessage(error.message, true);
+  }
   const form = modelFormHtml(state);
   const workspaceForm = workspaceFormHtml(workspaceConfig);
   const trustForm = trustFormHtml(projectTrust.mode);
   const advancedSettingsPath =
     advancedSettings?.settingsPath || (runtimeInfo?.agentDir ? `${runtimeInfo.agentDir}\\settings.json` : "");
   const advancedForm = advancedSettingsCardHtml(advancedSettings, advancedSettingsPath);
+  const themeForm = themeSettingsCardHtml(themeState?.customTheme);
   const promptForm = promptConfigHtml(prompts);
   const promptTemplatesForm = promptTemplatesHtml(promptTemplates);
   const rows = [
@@ -3035,10 +3090,11 @@ async function renderSettings() {
     { label: "会话目录", value: runtimeInfo.sessionDir, open: true },
   ];
   const settingsHero = settingsHeroHtml(state, workspaceConfig, projectTrust);
-  $("panelBody").innerHTML = `<div class="settings-page panel-page">${settingsHero}${form}<div class="settings-duo">${workspaceForm}${trustForm}</div>${advancedForm}${promptForm}${promptTemplatesForm}<section class="settings-paths-card"><div class="settings-section-head">文件与目录</div><div class="setting-card settings-paths">${settingRowsHtml(rows)}</div></section></div>`;
+  $("panelBody").innerHTML = `<div class="settings-page panel-page">${settingsHero}${form}<div class="settings-duo">${workspaceForm}${trustForm}</div>${themeForm}${advancedForm}${promptForm}${promptTemplatesForm}<section class="settings-paths-card"><div class="settings-section-head">文件与目录</div><div class="setting-card settings-paths">${settingRowsHtml(rows)}</div></section></div>`;
   bindOpenButtons();
   bindWorkspaceForm(workspaceConfig);
   bindTrustForm();
+  bindThemeSettings();
   bindAdvancedSettings();
   bindModelForm(state);
   bindPromptActions(prompts);
@@ -3301,7 +3357,6 @@ async function renderSession() {
   let session;
   let task;
   let stats;
-  let sessions = [];
   let autoRetryEnabled = true;
   try {
     const response = await API.getState();
@@ -3316,8 +3371,6 @@ async function renderSession() {
     }
     const statsResponse = await API.getSessionStats();
     if (statsResponse?.success) stats = statsResponse.data;
-    const sessionsResponse = await API.listSessions().catch(() => []);
-    sessions = Array.isArray(sessionsResponse) ? sessionsResponse : [];
     try {
       const retryResponse = await API.getAutoRetry();
       autoRetryEnabled = retryResponse?.enabled !== false;
@@ -3335,9 +3388,6 @@ async function renderSession() {
     done: "完成",
     blocked: "阻塞",
   };
-  const currentSession = sessions.find((item) => item.id === session?.sessionId);
-  const sessionName = currentSession?.name || currentSession?.preview || session?.sessionName || "未命名会话";
-  setHeader("会话", sessionName);
   const messageCount = session?.messageCount ?? 0;
   const contextUsage = stats?.contextUsage;
   const sessionHero = panelHeroHtml({

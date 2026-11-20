@@ -74,6 +74,7 @@ const state = {
   connected: false,
   runtimeState: "starting",
   theme: localStorage.getItem("pispider-theme") || "light",
+  customTheme: null,
   search: "",
   sessionSearchResults: [],
   sessionSearchActive: -1,
@@ -2450,12 +2451,37 @@ function renderQueue() {
     : `<div class="queue-empty">排队文本暂时为空。</div>`;
 }
 
-function applyTheme(theme, persist = true) {
+function applyCustomTheme() {
+  window.PiSpiderTheme?.apply(state.customTheme, state.theme);
+}
+
+function setThemeAppearance(theme) {
   state.theme = theme === "dark" ? "dark" : "light";
   document.documentElement.dataset.theme = state.theme;
-  if (persist) localStorage.setItem("pispider-theme", state.theme);
+  applyCustomTheme();
   if (document.querySelector(".mermaid-block")) resetMermaidBlocks();
+}
+
+function applyTheme(theme, persist = true) {
+  setThemeAppearance(theme);
+  if (persist) localStorage.setItem("pispider-theme", state.theme);
   window.pispider.setTheme(state.theme).catch(() => {});
+}
+
+function applyThemeFromMain(theme) {
+  setThemeAppearance(theme);
+  localStorage.setItem("pispider-theme", state.theme);
+}
+
+async function loadCustomTheme() {
+  try {
+    const response = await window.pispider.getTheme?.();
+    state.customTheme = response?.customTheme || null;
+  } catch {
+    state.customTheme = null;
+  }
+  applyCustomTheme();
+  if (document.querySelector(".mermaid-block")) resetMermaidBlocks();
 }
 
 function setPanel(open, persist = true) {
@@ -4464,7 +4490,6 @@ function ensureSessionOrderComplete() {
 
 function sessionSortRowHtml(session, position) {
   const active = state.session?.sessionFile === session.path;
-  const previewText = session.preview || session.cwd || "暂无消息";
   return `<div class="session-row session-sort-row${active ? " active" : ""}" data-sort-session="${escapeHtml(
     session.path,
   )}" data-sort-group="${session.pinned ? "pinned" : "recent"}">
@@ -4474,7 +4499,6 @@ function sessionSortRowHtml(session, position) {
         <span class="session-title">${escapeHtml(session.name)}</span>
         <span class="session-time">${escapeHtml(timeLabel(session.updatedAt))}</span>
       </div>
-      <span class="session-preview">${escapeHtml(previewText)}</span>
     </button>
     <span class="session-sort-position">${position + 1}</span>
   </div>`;
@@ -4646,9 +4670,8 @@ function sessionRowHtml(session, index, searchResult = null) {
   const active = state.session?.sessionFile === session.path;
   const searchActive = Number.isInteger(index) && index === state.sessionSearchActive;
   const confirming = state.confirmDeleteSession === session.path;
-  const previewText = searchResult?.snippet || session.preview || session.cwd || "暂无消息";
-  const matchField = searchResult?.matchField
-    ? `<span class="session-match-field">${escapeHtml(searchResult.matchField)}</span>`
+  const searchPreview = searchResult
+    ? `${searchResult.matchField ? `${searchResult.matchField} · ` : ""}${searchResult.snippet || session.preview || ""}`
     : "";
   return `
       <div class="session-row ${active ? "active" : ""} ${session.pinned ? "pinned" : ""} ${
@@ -4656,15 +4679,13 @@ function sessionRowHtml(session, index, searchResult = null) {
       } ${searchActive ? "search-active" : ""}">
         <button class="session-item ${active ? "active" : ""}" data-session="${escapeHtml(
           session.path,
-        )}" ${Number.isInteger(index) ? `data-search-index="${index}"` : ""} type="button">
+        )}" ${Number.isInteger(index) ? `data-search-index="${index}"` : ""} type="button"${
+          searchPreview ? ` title="${escapeHtml(searchPreview)}"` : ""
+        }>
           <div class="session-item-top">
             <span class="session-title">${highlightText(session.name, state.search)}</span>
             <span class="session-time">${escapeHtml(timeLabel(session.updatedAt))}</span>
           </div>
-          <span class="session-preview ${searchResult ? "search-preview" : ""}">${matchField}${highlightText(
-            previewText,
-            state.search,
-          )}</span>
         </button>
         <button class="session-pin ${session.pinned ? "on" : ""}" data-pin-session="${escapeHtml(
           session.path,
@@ -5936,6 +5957,12 @@ function autoResize() {
 
 function bindEvents() {
   bindBrowser();
+  window.pispider.onTheme?.((theme) => applyThemeFromMain(theme));
+  window.pispider.onCustomTheme?.((theme) => {
+    state.customTheme = theme || null;
+    applyCustomTheme();
+    if (document.querySelector(".mermaid-block")) resetMermaidBlocks();
+  });
   $("newTaskButton").addEventListener("click", newTask);
   $("changesBody").addEventListener("click", handleCodeAction);
   $("refreshSessionsButton").addEventListener("click", refreshSessions);
@@ -6808,6 +6835,7 @@ async function init() {
   loadCommandHistory();
   window.addEventListener("pagehide", persistMessageHeightsNow);
   applyTheme(state.theme, false);
+  await loadCustomTheme();
   setPanel(state.panelOpen && window.innerWidth >= PANEL_COLLAPSE_WIDTH, false);
   setRightTab(state.rightTab);
   bindEvents();
