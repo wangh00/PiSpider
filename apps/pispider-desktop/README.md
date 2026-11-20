@@ -64,6 +64,8 @@ npm run dist:win
 
 `dist:win` 先执行 `prepare:packaged`（`scripts/prepare-packaged-runtime.mjs`）幂等重建 `build/packaged/` staging：launcher closure（`scripts/` + `packages/pispider/`）和完整 core 1.5.2 缓存副本；自检通过后再由 electron-builder 26.18.0 产出 NSIS 安装包。首次构建会下载 nsis / winCodeSign 到 electron-builder 本地缓存。
 
+升级随包 Pi core 时用 `npm run pispider:core-version -- 1.5.3` 同步 `scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs` 和 `packaged-runtime.cjs` 三处 `CORE_VERSION`；`npm run check:core-version` 校验一致性，根 `npm run check` 已包含该检查。根与桌面 `package.json` 已补 `author`，electron-builder 不再给出缺失作者警告。
+
 产物在 `release/`：
 
 - `PiSpider Setup <version>.exe`：NSIS 安装包（非 oneClick、perMachine=false）；

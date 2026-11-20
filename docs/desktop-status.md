@@ -18,6 +18,7 @@
 | 会话手动排序 | 侧栏“排序任务”模式：置顶 / 最近分组，拖动 ≡ 或 `Alt+↑/↓` 调整，展示序写入 `desktop.json.sessionOrder`，普通视图按该序展示，支持恢复默认 | [desktop-ui.md](desktop-ui.md) §5；[acceptance.md](acceptance.md) §11 |
 | 高级 settings | 设置窗口“高级设置”卡：transport、HTTP proxy、shell path、defaultTools（纯名称 / `+` / `-`）、compaction 开关与 token 参数；写用户级 `settings.json`，保存后重启 Agent，逐模型压缩覆盖保留 | [desktop-parity.md](desktop-parity.md) §6；[acceptance.md](acceptance.md) §12 |
 | doctor 日志导出 | 状态窗口“导出诊断”生成脱敏文本报告：应用 / 运行时信息、环境诊断、最近 400 条运行时日志（agent stderr、runtime 状态与退出事件）；移除认证原始输出并屏蔽常见密钥形态 | [desktop-parity.md](desktop-parity.md) §6；[acceptance.md](acceptance.md) §13 |
+| core 版本同步 | `scripts/pispider-version.mjs --check` 校验 launcher / packaged stager / desktop CORE_VERSION 三处一致；`npm run pispider:core-version -- <x.y.z>` 一次更新三处；根 `npm run check` 与 `pispider:check` 已接入；根 / 桌面 `package.json` 补 `author` | [desktop-parity.md](desktop-parity.md) §7；[acceptance.md](acceptance.md) §14 |
 
 其余已落地能力（会话控制、模型 / 思考档位 / 会话权限、规则 / 技能 / 提示词 / MCP / 扩展管理、浏览器与代码页、上下文用量、provider OAuth 三家等）的逐项对照见 [desktop-parity.md](desktop-parity.md) §1–§6；UI 已落地清单见 [desktop-ui.md](desktop-ui.md) §5。
 
@@ -28,7 +29,7 @@
 | Electron | 45.3.2 | `apps/pispider-desktop/package.json` devDependencies 精确锁版 |
 | electron-builder | 26.18.0 | 同上 |
 | Mermaid 裁剪运行时 | 12.3.0 | `vendor/mermaid`，仅保留 flowchart / sequence |
-| Pi core | 1.5.2 | CORE_VERSION 三处：`scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs`、`apps/pispider-desktop/packaged-runtime.cjs` |
+| Pi core | 1.5.2 | CORE_VERSION 三处：`scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs`、`apps/pispider-desktop/packaged-runtime.cjs`；由 `npm run check:core-version` 校验一致 |
 | 本机 Node / npm | Node v22.23.2 / npm 10.9.8（本机实测） | engines 要求 `>=22.19.0`，满足；打包实例不依赖系统 Node |
 | 桌面测试 | 43/43 通过 | `apps/pispider-desktop` node 测试，最近记录 2026-11-20 |
 | 扩展包测试 | 45 tests / 44 pass / 1 skipped / 0 fail | `pispider:test`，最近记录 2026-11-20 |
@@ -49,7 +50,7 @@
 4. [development.md](development.md) — 环境准备、启动、打包、测试流程。
 5. [desktop-ui.md](desktop-ui.md) — UI 信息架构、视觉基线与性能方向。
 6. [commands.md](commands.md) — `/ps` 命令、`ps_task`、数据目录与环境变量速查。
-7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§13 doctor 日志导出，2026-11-20；§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
+7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§14 CORE_VERSION 同步与 author，2026-11-20；§13 doctor 日志导出，2026-11-20；§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
 
 补充参考：[architecture.md](architecture.md)（分层与 RPC 链路）、[desktop-runtime-contract.md](desktop-runtime-contract.md)（RPC 契约）、[apps/pispider-desktop/README.md](../apps/pispider-desktop/README.md)（Electron 运行链路与 IPC）。
 
@@ -137,7 +138,7 @@
 | P1-7 | 逐模型思考档位 UI | 无（已完成 2026-11-20） | 模型弹层内选择当前模型启动默认档位，写 `settings.json.modelThinkingLevels`，保存后重启并同步当前会话；可清除 |
 | P1-8 | 高级 settings：proxy / transport / shell / 细粒度 allowlist / compaction 参数 | 无（已完成 2026-11-20） | 设置窗口“高级设置”卡读写用户级 `settings.json`；保存校验 proxy / transport / shell / defaultTools / compaction，成功后重启 runtime 并保留会话；`compaction.modelOverrides` 原样保留，项目级同名键仍可覆盖 |
 | P1-8b | MCP 单工具运行态订阅 | 上游阻塞：服务器级 `mcp_status_changed` live state 已端到端落地；`McpLiveServerStatus` 只含工具名数组，无单工具运行 / 可用状态字段 | 补齐后 MCP 面板可展示逐工具运行态 |
-| P1-9 | CORE_VERSION 1.5.2 三处同步升级流程 + 两个 `package.json` 缺失 `author` 的构建警告 | 无；桌面可独立做 | 打包维护性：升级 core 版本时易漏三处同步 |
+| P1-9 | CORE_VERSION 1.5.2 三处同步升级流程 + 两个 `package.json` 缺失 `author` 的构建警告 | 无（已完成 2026-11-20） | 新增 `scripts/pispider-version.mjs`：`--check` 比对三处并接入根 `check` / `pispider:check`，`--set` 由 `npm run pispider:core-version -- <x.y.z>` 调用；根与桌面 package.json 已补 `author: wangh00` |
 | P1-10 | 打包版 stdio 预置 MCP 的 npm 方案：随包 npm-cli 或维持读不到 npm CLI 时的降级 | 体积权衡；桌面可独立做 | 打包实例 MCP 可用性 |
 | P1-11 | doctor 日志导出 | 无（已完成 2026-11-20） | 状态窗口“导出诊断”写脱敏文本报告，含应用 / 运行时信息、环境诊断和最近 400 条 runtime 日志；导出前移除 auth 原始输出并做密钥形态屏蔽 |
 

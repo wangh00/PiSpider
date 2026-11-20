@@ -162,7 +162,7 @@ TUI 内置命令共 24 个，桌面层在发送前本地拦截；下表按命令
 3. 逐模型思考档位 UI：已完成。模型弹层内为当前模型选择启动默认档位，写 `settings.json.modelThinkingLevels`（精确 `provider/modelId`），保存后重启 Agent 并把当前会话同步到该档位；可清除回“跟随全局”。
 4. 高级 settings（proxy / transport / shell / 细粒度 allowlist / compaction 参数）：已完成。设置窗口“高级设置”卡读写用户级 `settings.json`：`transport`、`httpProxy`、`shellPath`、`defaultTools`（纯名称 / `+` / `-` 语义）与 `compaction.enabled` / `reserveTokens` / `keepRecentTokens`，保存后重启 Agent；`compaction.modelOverrides` 保留。项目级 `.pi/settings.json` 仍可覆盖同名键。
 5. MCP 单工具运行态订阅：服务器级连接 live state 已接（RPC `mcp_status` 快照 + `mcp_status_changed` 推送原地更新）；单工具运行时状态订阅仍缺上游数据，`McpLiveServerStatus.tools` 仅为工具名数组，无单工具运行 / 可用状态字段。
-6. CORE_VERSION 三处同步升级流程（`scripts/pispider-launcher.mjs`、`scripts/prepare-packaged-runtime.mjs`、`packaged-runtime.cjs`）与 `package.json` 缺失 `author` 警告：桌面可独立做（打包维护性）。
+6. CORE_VERSION 三处同步升级流程（`scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs`、`apps/pispider-desktop/packaged-runtime.cjs`）与两个 `package.json` 缺失 `author` 警告：已完成（2026-11-20）。新增 `scripts/pispider-version.mjs --check` / `--set`，根 `npm run check` 与 `pispider:check` 均校验三处一致；升级用 `npm run pispider:core-version -- <x.y.z>`。根与桌面 `package.json` 补 `author: wangh00`。
 7. 打包版 stdio 预置 MCP 的 npm 方案：随包 npm-cli 或维持现有 npm CLI 缺失降级，属体积权衡；桌面可独立做。
 8. doctor 日志导出：已完成（2026-11-20）。状态窗口“导出诊断”生成脱敏文本报告，包含应用 / 运行时信息、环境诊断和最近 400 条运行时日志；日志来自 agent stderr、runtime 状态与退出事件。报告导出前移除认证原始输出，并屏蔽常见 API Key / Bearer / token 形态；仍不包含网络诊断或 `pi doctor` 的完整检查项。
 

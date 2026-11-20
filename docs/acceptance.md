@@ -627,6 +627,55 @@ npm run pispider:desktop
 - 报告不含网络探测、`pi doctor` 完整检查项，也不打包 session / auth 文件；需要更完整现场时仍要手动收集。
 - 报告为单个 `.txt`，没有压缩包；如需附件大小治理，后续可加 ZIP 或按时间裁剪。
 
+## 14. CORE_VERSION 同步与 author（2026-11-20）
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `scripts/pispider-version.mjs` | 新增 `--check` / `--set <x.y.z>`：检查 `scripts/pispider-launcher.mjs`、`apps/pispider-desktop/scripts/prepare-packaged-runtime.mjs`、`apps/pispider-desktop/packaged-runtime.cjs` 三处 `CORE_VERSION`；不一致时列出文件与版本并以 1 退出；`--set` 校验语义化版本后一次改写三处 |
+| `package.json` | `check` 增加 `node scripts/pispider-version.mjs --check`；新增 `check:core-version` 与 `pispider:core-version`；`pispider:check` 先跑版本检查；补 `author: wangh00` |
+| `apps/pispider-desktop/package.json` | 补 `author: wangh00`，消除 electron-builder 缺失作者警告 |
+| `apps/pispider-desktop/README.md` | 打包段补升级命令、检查入口和 author 说明 |
+| `docs/desktop-parity.md` | §7 P1-9 标记完成 |
+| `docs/desktop-status.md` | 已落地能力新增“core 版本同步”；P1-9 标记完成；Pi core 行补校验命令；阅读顺序加 §14 |
+| `docs/development.md` | author 警告说明改为已补；补 core 升级 / 检查命令 |
+| `docs/desktop-runtime-contract.md` | CORE_VERSION 三处约束补检查命令 |
+
+### 行为
+
+- `--check` 每次读取三个文件中的 `const CORE_VERSION = "x.y.z";`（launcher 允许 `export const`），只有三处完全一致才通过。
+- 不一致时输出三行 `版本 文件路径`，包含实际差异，并以退出码 1 结束；可直接定位漏改文件。
+- `--set` 只接受 `x.y.z` / 预发布 / build metadata 形式，拒绝空值、两位版本或包含空白的输入；成功后打印三个文件名和下一步提示。
+- 脚本不改 README、docs 或 core 缓存；升级 core 后仍需更新文档并重建 `build/packaged/runtime/core-<version>`。
+- 根 `npm run check` 与 `npm run pispider:check` 都会先跑版本检查，CI / 本地提交前即可发现漂移。
+- 根与桌面 `package.json` 均使用 `author: "wangh00"`；electron-builder 不再给出 author 缺失警告。
+
+### 验证
+
+- `node scripts/pispider-version.mjs --check`：输出 `CORE_VERSION 1.5.2 三处一致（3 个文件）`，exit 0。
+- `npm run pispider:core-version -- 1.5.2`：三个文件均打印 `updated`，随后 `npm run check:core-version` 仍为一致；三处文件无 git diff（内容未变）。
+- 故障注入：把 `packaged-runtime.cjs` 的常量临时改为 `1.5.9`，`--check` 输出：
+  `CORE_VERSION 三处不一致：`，并列出 `1.5.2 scripts/pispider-launcher.mjs`、`1.5.2 ...prepare-packaged-runtime.mjs`、`1.5.9 ...packaged-runtime.cjs`，exit 1；随后 `--set 1.5.2` 恢复一致。
+- `npm run pispider:check` 先输出“三处一致”，再执行原有 PiSpider 语法检查，exit 0。
+- 根 `npm run check` 在 biome 后执行版本检查，再继续 pinned / runtime / ts-imports / entry-graphs / install-lock / tsc / browser-smoke，exit 0。
+- 两个 `package.json` 均可被 `JSON.parse`，`author` 为字符串 `wangh00`。
+
+### 自动化检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0（2575 文件，无修复；含 CORE_VERSION 检查） |
+| 2 | `npm run pispider:check` | exit 0（含 CORE_VERSION 检查） |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `cd apps/pispider-desktop; npm test` | 46/46 pass |
+
+### 遗留
+
+- 脚本只同步三处常量，不更新随包 core 缓存、README 中的示例版本或 `docs/desktop-status.md` 的版本表；升级 core 仍需重新准备 runtime 并跑打包。
+- `author` 使用仓库账号 `wangh00`；如果要发布到 npm / 应用商店，后续可补邮箱或组织名。
+- 打包产物的 electron-builder 警告未通过实际构建复验，本轮只确认 manifest 字段已存在。
+
 
 
 

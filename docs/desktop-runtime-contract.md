@@ -13,7 +13,7 @@ CI / 功能清单见 [desktop-status.md](desktop-status.md)，CLI 与桌面差�
 
 - 仓库内 Pi 包版本：`packages/coding-agent@1.5.2`、`packages/agent@1.5.2`。
 - npm 上 `@earendil-works/pi-coding-agent` 最新版本：`1.5.2`（2026-11-16 实测）。
-- 启动器 `scripts/pispider-launcher.mjs` 固定 `CORE_VERSION = 1.5.2`，不从 `latest` 动态取版本。
+- 启动器 `scripts/pispider-launcher.mjs` 固定 `CORE_VERSION = 1.5.2`，不从 `latest` 动态取版本；桌面 staging 与 `packaged-runtime.cjs` 的同名常量由 `npm run check:core-version` 校验三处一致，升级用 `npm run pispider:core-version -- <x.y.z>`。
 - 结论：当前没有 Pi 版本漂移，不需要做包升级；需要做的是桌面端与 RPC 契约的对齐，以及本地适配的收敛。
 
 桌面 runtime 的启动顺序仍是：`PISPIDER_CORE_CLI` → 仓库 `dist/bundle/cli.js` → `$PISPIDER_HOME/runtime/core-1.5.2/` → 安装缓存。开发态可能运行本仓库构建产物，发布态运行缓存的上游 1.5.2；两者必须使用同一套 RPC 契约。
