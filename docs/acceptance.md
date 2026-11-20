@@ -431,7 +431,51 @@ npm run pispider:desktop
 - 未在隔离实例里执行真实的跨会话切换（会启动 runtime 并写临时会话）；切换链路沿用既有 `switchSession()`，未改。
 - 队列逐条删除仍等上游 `get_queue` / `remove_queue_item`，本轮未动。
 - 打包产物未重建：`release/win-unpacked` 与安装包仍是改版前的 asar；需要新安装包时执行 `cd apps/pispider-desktop; npm run dist:win`。
-- 当前运行中的便携版实例仍是旧渲染代码；开发版 `npm run pispider:desktop` 启动后即加载本轮改动。
+## 10. 逐模型默认思考档位（2026-11-20）
+
+### 改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/pispider-desktop/main.cjs` | 新增 `MODEL_THINKING_LEVELS` / `normalizeModelThinkingLevels()` / `setModelThinkingDefault()`；`config:get-model-scope` 响应增加 `modelThinkingLevels`；新增 `config:set-model-thinking-default` IPC，校验引用与档位，写入或删除 `settings.json.modelThinkingLevels`，runtime 存在时重启并保留会话，重启失败仍保留配置并返回 `restarted: false` |
+| `apps/pispider-desktop/preload.cjs` | 暴露 `setModelThinkingDefault(reference, level)` |
+| `apps/pispider-desktop/renderer/app.js` | `state.modelThinkingDefaults`；`refreshAgentOptions()` 读取 scope 响应里的默认档位；模型弹层新增“该模型启动默认”选择行与保存按钮；模型行 meta 显示“默认高”等标记；保存成功后重启并调用 `set_thinking_level` 同步当前会话，清除只删除配置；旧配置含 `minimal` 或当前模型不支持的档位时保留同值选项 |
+| `apps/pispider-desktop/renderer/styles.css` | `.model-thinking-row` 下拉与主按钮样式 |
+| `apps/pispider-desktop/README.md` | 模型思考强度 / 作用域两段补逐模型默认说明 |
+| `docs/desktop-parity.md` | 模型行与 `/thinking` 行更新；移除“逐模型思考档位暂无 UI”缺口；§7 P1-3 标记完成 |
+| `docs/desktop-status.md` | 已落地能力新增“逐模型思考默认”；P1-7 标记完成 |
+| `docs/desktop-ui.md` | §5 新增实现与 CDP 记录 |
+| `docs/architecture.md` | 补 `modelThinkingLevels` 写入路径 |
+
+### 行为
+
+- 键为精确 `provider/modelId`，与 Pi `settings-manager` 的读取键一致；档位白名单为 `off / minimal / low / medium / high / xhigh / max`，桌面下拉显示 `off / low / medium / high / xhigh / max`。
+- 保存流程：`config:set-model-thinking-default` 写文件 → 重启 runtime（`restartAgentPreservingSession`）→ 返回 `{ ok, levels, restarted }` → 渲染层 `set_thinking_level` 同步当前会话 → `refreshAgentOptions()` 重新拉取作用域与默认档位。
+- 清除流程：写 `level = null`，从对象删除该键；对象为空时删除 `modelThinkingLevels` 字段；不主动改当前会话档位。
+- 重启失败不丢配置：主进程捕获重启异常并返回 `restarted: false`，toast 显示“配置已保存，runtime 未重启”。
+
+### 验证（隔离开发实例，CDP 9348）
+
+- 注入 `faux/model-a` 当前模型、预置 `{"faux/model-a":"medium"}`：下拉值为 `medium`，选项为“跟随全局 / 关闭 / 低 / 中 / 高 / 极高 / 最高”7 项，模型行 meta 显示 `faux · model-a · 默认中`。
+- 调用 `setModelThinkingDefault("faux/model-a","high")`：返回 `ok: true`、`restarted: true`，`getModelScope` 返回 `{"faux/model-a":"high"}`；`~/.pispider/agent/settings.json`（临时 `PISPIDER_HOME`）写入相同结构。再次写 `xhigh` 后文件为 `{"modelThinkingLevels":{"faux/model-a":"xhigh"}}`。
+- 调用 `setModelThinkingDefault("faux/model-a", null)`：返回 `levels: {}`，`getModelScope` 为空对象，`settings.json` 变回 `{}`（字段整体删除）。
+- 非法档位 `bogus`：IPC 拒绝，错误为“思考档位无效”。
+- 验证后停止隔离 Electron，删除临时 `ui-home` / `ui-userdata`，未触碰真实 `~/.pispider`。
+
+### 自动化检查
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 根 `npm run check` | exit 0 |
+| 2 | `npm run pispider:check` | exit 0 |
+| 3 | `npm run pispider:test` | 45 tests / 44 pass / 1 skipped / 0 fail |
+| 4 | `cd apps/pispider-desktop; npm test` | 43/43 pass |
+
+### 遗留
+
+- 打包产物仍未重建；开发版加载新代码，便携版 / 安装包需要 `npm run dist:win`。
+- `minimal` 仍不在桌面下拉中显示（沿用现有过滤），但旧配置里的 `minimal` 值会保留显示，不会被静默改成“跟随全局”。
+
 
 
 
