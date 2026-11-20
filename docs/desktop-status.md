@@ -20,6 +20,8 @@
 | doctor 日志导出 | 状态窗口“导出诊断”生成脱敏文本报告：应用 / 运行时信息、环境诊断、最近 400 条运行时日志（agent stderr、runtime 状态与退出事件）；移除认证原始输出并屏蔽常见密钥形态 | [desktop-parity.md](desktop-parity.md) §6；[acceptance.md](acceptance.md) §13 |
 | core 版本同步 | `scripts/pispider-version.mjs --check` 校验 launcher / packaged stager / desktop CORE_VERSION 三处一致；`npm run pispider:core-version -- <x.y.z>` 一次更新三处；根 `npm run check` 与 `pispider:check` 已接入；根 / 桌面 `package.json` 补 `author` | [desktop-parity.md](desktop-parity.md) §7；[acceptance.md](acceptance.md) §14 |
 | 打包版 MCP npm | 构建时随包 npm 10.9.8 + 依赖与许可证；打包版安装优先由 `PiSpider.exe`（`ELECTRON_RUN_AS_NODE=1`）执行 `resources/npm/bin/npm-cli.js`，其次系统 PATH npm，均缺失时中文降级；`chrome-devtools-mcp` 可在无 Node/npm 的 PATH 下安装并连接 | [desktop-parity.md](desktop-parity.md) §7；[acceptance.md](acceptance.md) §15 |
+| 会话树切换节点 | 会话树节点新增“切换到此节点”，通过 RPC `navigate_tree` 在同一会话文件内移动 leaf；原分支保留，目标为用户消息时原消息回填输入框；不新建会话文件 | [desktop-parity.md](desktop-parity.md) §2；[acceptance.md](acceptance.md) §16 |
+| MCP 逐工具调用态 | MCP 面板从 `tool_execution_start/update/end` 派生本次运行的逐工具状态：运行中 / 成功 / 失败 / 次数 / 耗时 / 最近错误；服务器声明的工具健康态仍缺上游字段 | [desktop-parity.md](desktop-parity.md) §4；[acceptance.md](acceptance.md) §16 |
 
 其余已落地能力（会话控制、模型 / 思考档位 / 会话权限、规则 / 技能 / 提示词 / MCP / 扩展管理、浏览器与代码页、上下文用量、provider OAuth 三家等）的逐项对照见 [desktop-parity.md](desktop-parity.md) §1–§6；UI 已落地清单见 [desktop-ui.md](desktop-ui.md) §5。
 
@@ -51,7 +53,7 @@
 4. [development.md](development.md) — 环境准备、启动、打包、测试流程。
 5. [desktop-ui.md](desktop-ui.md) — UI 信息架构、视觉基线与性能方向。
 6. [commands.md](commands.md) — `/ps` 命令、`ps_task`、数据目录与环境变量速查。
-7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§15 打包版 MCP npm 方案，2026-11-20；§14 CORE_VERSION 同步与 author，2026-11-20；§13 doctor 日志导出，2026-11-20；§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
+7. [acceptance.md](acceptance.md) — 验证记录；先读最新条目（§16 会话树切换节点与 MCP 逐工具调用态，2026-11-20；§15 打包版 MCP npm 方案，2026-11-20；§14 CORE_VERSION 同步与 author，2026-11-20；§13 doctor 日志导出，2026-11-20；§12 高级 settings，2026-11-20；§11 会话手动排序，2026-11-20；§10 逐模型默认思考档位，2026-11-20；§9 正确性补口与版本控制，2026-11-20），历史条目不作为现状依据。
 
 补充参考：[architecture.md](architecture.md)（分层与 RPC 链路）、[desktop-runtime-contract.md](desktop-runtime-contract.md)（RPC 契约）、[apps/pispider-desktop/README.md](../apps/pispider-desktop/README.md)（Electron 运行链路与 IPC）。
 
@@ -135,10 +137,10 @@
 | # | 事项 | 阻塞依赖 | 理由 / 判定 |
 | --- | --- | --- | --- |
 | P1-5 | `/share` Radius artifact 与分享目的地设置（Gist 路径已接） | 部分上游阻塞：Radius 分享路径上游未接；目的地字段 `sessionShareDestination` schema 已存在，目的地选择 UI 可桌面写配置 | 分享链路完整性 |
-| P1-6 | 会话树节点删除 / 排序 | 排序已完成（2026-11-20）；节点删除上游阻塞：RPC 与 session-manager 均无 entry 删除 / 重排 API | 侧栏“排序任务”模式拖动或 `Alt+↑/↓` 调整，展示序持久化到 `desktop.json.sessionOrder`；整文件删除已是桌面自有文件操作 |
+| P1-6 | 会话树节点删除 / 排序 | 排序已完成（2026-11-20）；切换节点已完成（2026-11-20）；节点删除上游阻塞：RPC 与 session-manager 均无 entry 删除 / 重排 API | 侧栏“排序任务”模式拖动或 `Alt+↑/↓` 调整，展示序持久化到 `desktop.json.sessionOrder`；会话树节点支持“切换到此节点”，通过 RPC `navigate_tree` 在同一会话文件内移动 leaf，原分支保留；整文件删除已是桌面自有文件操作 |
 | P1-7 | 逐模型思考档位 UI | 无（已完成 2026-11-20） | 模型弹层内选择当前模型启动默认档位，写 `settings.json.modelThinkingLevels`，保存后重启并同步当前会话；可清除 |
 | P1-8 | 高级 settings：proxy / transport / shell / 细粒度 allowlist / compaction 参数 | 无（已完成 2026-11-20） | 设置窗口“高级设置”卡读写用户级 `settings.json`；保存校验 proxy / transport / shell / defaultTools / compaction，成功后重启 runtime 并保留会话；`compaction.modelOverrides` 原样保留，项目级同名键仍可覆盖 |
-| P1-8b | MCP 单工具运行态订阅 | 上游阻塞：服务器级 `mcp_status_changed` live state 已端到端落地；`McpLiveServerStatus` 只含工具名数组，无单工具运行 / 可用状态字段 | 补齐后 MCP 面板可展示逐工具运行态 |
+| P1-8b | MCP 单工具运行态订阅 | 桌面调用态已完成（2026-11-20）；服务器级 `mcp_status_changed` live state 已端到端落地；`McpLiveServerStatus` 仍无单工具运行 / 可用字段 | MCP 面板从 `tool_execution_start/update/end` 派生本次运行的逐工具调用态（运行中 / 成功 / 失败 / 次数 / 耗时）；服务器声明的工具健康态仍缺上游数据 |
 | P1-9 | CORE_VERSION 1.5.2 三处同步升级流程 + 两个 `package.json` 缺失 `author` 的构建警告 | 无（已完成 2026-11-20） | 新增 `scripts/pispider-version.mjs`：`--check` 比对三处并接入根 `check` / `pispider:check`，`--set` 由 `npm run pispider:core-version -- <x.y.z>` 调用；根与桌面 package.json 已补 `author: wangh00` |
 | P1-10 | 打包版 stdio 预置 MCP 的 npm 方案 | 无（已完成 2026-11-20） | A+B：构建时随包 npm 10.9.8（含依赖与 LICENSE），安装优先 `resources/npm/bin/npm-cli.js` + `ELECTRON_RUN_AS_NODE=1`，系统 PATH npm 兜底；无 Node/npm 的 PATH 下已实测安装 `chrome-devtools-mcp@1.13.0` 并连接 33 个工具 |
 | P1-11 | doctor 日志导出 | 无（已完成 2026-11-20） | 状态窗口“导出诊断”写脱敏文本报告，含应用 / 运行时信息、环境诊断和最近 400 条 runtime 日志；导出前移除 auth 原始输出并做密钥形态屏蔽 |

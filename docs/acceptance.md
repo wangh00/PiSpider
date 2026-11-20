@@ -721,7 +721,43 @@ npm run pispider:desktop
 - npm 许可证只随文件分发，安装包未增加许可证展示页。
 - 系统 PATH npm 兜底在 Windows 上优先解析同目录 npm-cli.js；若发行版把 npm 装到非标准布局且无同级 CLI，仍会走 shell shim 路径。
 
+## 16. 会话树切换节点与 MCP 逐工具调用态（2026-11-20）
 
+### 目标
 
+- P1-6：不删除分支、不新建会话文件，在同一会话树内把当前 leaf 移到目标节点，继续后续对话；目标为用户消息时把原消息回填输入框。
+- P1-8b：不改 Pi core 的工具状态类型，先从 `tool_execution_start/update/end` 派生本次运行的 MCP 逐工具调用态，显示运行中 / 成功 / 失败 / 次数 / 耗时；明确它不等于服务器声明的工具健康态。
 
+### 实现
+
+| 文件 | 改动 |
+| --- | --- |
+| `packages/coding-agent/src/modes/rpc/rpc-types.ts` | 新增 `navigate_tree` 命令与成功响应：`targetId`、可选 `summarize / customInstructions / replaceInstructions / label`；返回 `editorText / cancelled / aborted / summaryEntryId`。 |
+| `packages/coding-agent/src/modes/rpc/rpc-mode.ts` | `navigate_tree` 调用已有的 `session.navigateTree()`，不新建会话、不 `rebindSession()`；当前流式回复或压缩未结束时由 core 返回可读错误。 |
+| `packages/coding-agent/src/modes/rpc/rpc-client.ts` | 新增 `navigateTree()` 类型化客户端方法。 |
+| `apps/pispider-desktop/main.cjs` | 新增 `agent:navigate-tree` IPC，调用 RPC 后发 `sessions:changed`；有 `editorText` 时发 `composer:set-draft`。新增 `mcp-tool-runtime.cjs` tracker：`tool_execution_start` 记运行中并累计次数，`end` 记成功 / 失败 / 耗时 / 错误，`agent_settled` 把未结束调用标为“调用中断”；`mcp_status` 与 `mcp_status_changed` 附带 `toolRuntime`，并向 MCP 子窗口推送 `mcp_tool_runtime_changed`。 |
+| `apps/pispider-desktop/mcp-tool-runtime.cjs` | 纯函数 tracker，解析 `mcp__<server>__<tool>`，按 server 生成工具状态快照；`reset()` 在每次 runtime 启动时清空，避免跨次运行串状态。 |
+| `apps/pispider-desktop/preload.cjs` | 暴露 `navigateSessionTree()` 与 `onComposerDraft()`。 |
+| `apps/pispider-desktop/renderer/panel.js` | 会话树节点新增“切换到此节点”，确认后调用 `navigateSessionTree`；MCP 工具 chip 显示运行中 / 成功 / 失败，悬浮标题显示调用次数、最近耗时和错误，并显示“本次运行：N 次调用”摘要；流式 / 压缩中的错误翻成中文。 |
+| `apps/pispider-desktop/renderer/app.js` | 接收 `composer:set-draft`，输入框为空时回填目标用户消息；已有草稿时不覆盖并提示。收到 `sessions:changed` 的 `reason:"navigate"` 时调用 `refreshFromAgent()`，把主窗口会话区刷新到切换后的分支。 |
+| `apps/pispider-desktop/renderer/panel.css` | 增加 `running / success / error` 工具 chip 和“本次运行”摘要样式。 |
+| `apps/pispider-desktop/test/mcp-tool-runtime.test.mjs` | 4 项单测：名称解析、运行 / 成功 / 失败 / 次数 / 耗时、按 server 装饰状态并忽略非 MCP 事件、settle 中断和 reset。 |
+| `apps/pispider-desktop/package.json` | 打包白名单加入 `mcp-tool-runtime.cjs`。 |
+
+### 验证
+
+- RPC 冒烟：用真实会话副本启动本地 core `--mode rpc`，`get_state` 成功，`switch_session` 成功，`get_tree` 返回 55 个节点；对最后一条用户消息执行 `navigate_tree` 返回 `success:true`、`cancelled:false`、`editorText:"为什么 多了一个 Chrome DevTools 的skill？"`、`summaryEntryId:null`。
+- 桌面 CDP：打开会话窗口 → 会话树，55 个节点均出现“切换到此节点”；点击最后一条用户节点的按钮后，`ruleDialog` 关闭，面板提示“已切换到此节点；输入框为空时会恢复该节点原消息”；主窗口会话区刷新为切换后分支的 4 条消息，输入框回填同一条用户消息，当前会话文件仍为测试副本。验证后切回原会话并删除副本，原会话 JSONL 未被改写。
+- 桌面 CDP（MCP 面板 mock）：注入一个 connected 服务器和 `toolRuntime`（`ping` 运行中、`echo` 失败、`slow` 成功），面板显示“已连接 · 3 个工具”“ping运行中 / echo失败 / slow成功”，摘要为“本次运行：6 次调用 · 1 个失败 · 1 个运行中”；悬浮标题分别显示 `调用 2 次 · 最近 35ms`、`调用 1 次 · 最近 80ms · tab not found`、`调用 3 次 · 最近 1.2s`。再调用 `updateMcpToolRuntime()` 把 `ping` 置为成功，chip 原地变为 `success`，摘要失败数保留，证明实时更新路径可用。
+- `node --test apps/pispider-desktop/test/mcp-tool-runtime.test.mjs`：4/4 通过。
+- `npm test --workspace apps/pispider-desktop`：52/52 通过。
+- `npx tsc --noEmit`：通过。
+- `node --check`：`main.cjs`、`mcp-tool-runtime.cjs`、`renderer/panel.js`、`renderer/app.js`、`preload.cjs` 通过。
+- `npm run build --workspace=@earendil-works/pi-coding-agent`：本地 core bundle 构建成功，RPC 冒烟使用该构建。
+
+### 遗留
+
+- P1-6 的“真正删除分支节点”仍未实现：`SessionManager` 保持 append-only，没有 entry 删除 / 重排 API；本轮只增加同一会话内的 leaf 切换，原分支始终保留。
+- P1-8b 的服务器声明工具健康态仍缺上游字段；当前 `toolRuntime` 只记录本 runtime 观察到的调用，runtime 重启后清空，不跨会话持久化。MCP 协议本身只有 `tools/list` 与调用，没有工具健康检查接口。
+- 工具 chip 仍只展示前 10 个工具；隐藏工具的 `toolRuntime` 会进入摘要计数，但不会单独显示 chip。
 

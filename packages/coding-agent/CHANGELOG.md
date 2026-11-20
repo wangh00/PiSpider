@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added the RPC `navigate_tree` command and `RpcClient.navigateTree()` for moving the current leaf to another node in the same session file, with the editor text of user-message targets returned for the client to restore
 - Added optional change subscriptions to `pi.registerMcpStatusProvider()` and `mcp_status_changed` session events, so clients can receive live MCP connection state without polling
 - Added `deepseek-v4.1-flash` and `deepseek-v4.1-flash-1017` to the Qwen Token Plan Individual providers, and per-plan key variables `QWEN_TOKEN_PLAN_TEAM_API_KEY`, `QWEN_TOKEN_PLAN_TEAM_CN_API_KEY`, `QWEN_TOKEN_PLAN_INDIVIDUAL_API_KEY`, and `QWEN_TOKEN_PLAN_INDIVIDUAL_CN_API_KEY`; the shared `QWEN_TOKEN_PLAN_API_KEY` and `QWEN_TOKEN_PLAN_CN_API_KEY` still work ([#11773](https://github.com/earendil-works/pi/issues/11773))
 
